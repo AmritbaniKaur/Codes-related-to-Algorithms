@@ -1,0 +1,489 @@
+// Matrices.cpp : Defines the entry point for the console application.
+
+// HW2: Sparse Matrix Operation -- Application of 2-D linked lists  
+// by C-Y (Roger) Chen
+// Due:  11:59pm, Wed. September 27
+// Implement the following three member functions for the class my_matrix:
+// add_node, operator+, operator*
+// Do not change the main function and the my_matrix::print function
+
+/*
+* For HW2, the function add_node plays a crucial role.  It has to insert a new node to
+* a row linked list and column linked list such that linked lists in both directions
+* are sorted based on position.
+*
+* For matrix addition (operator+) and matrix multiplication (operator*),
+* although only matrices of proper sizes and can be added or multiplied,
+* you will not be penalized if you don’t check for valid matrix sizes.  In other words,
+* during grading, only matrices of valid sizes will be used for addition and
+* multiplication operations.
+*/
+
+#include "stdafx.h"
+
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class node
+{
+public:
+	int value;
+	int r_position;
+	int c_position;
+	node * r_next;
+	node * c_next;
+
+	node()
+	{
+		value = -9999;
+		r_position = c_position = -1;
+		r_next = c_next = nullptr;
+	}
+
+	node(int v, int r, int c)
+	{
+		value = v;
+		r_position = r;
+		c_position = c;
+		r_next = c_next = nullptr;
+	}
+};
+
+class my_matrix
+{
+public:
+	int num_rows;
+	int num_cols;
+	vector<node *> r_vec;
+	vector<node *> c_vec;
+
+	my_matrix()
+	{
+
+	}
+
+	my_matrix(int r, int c);
+	//Initialize a matrix of rows and c cols.
+
+	my_matrix(int r, int c, int n, int k);
+	//Initializa a matrix of r rows, c cols, n nodes, with values randomly in - (k-1) ... (k-1);
+
+	void print(); //print value, r_position, and c_position of all matrix elements in row-oriented manner
+
+	//Implement the following three member functions:
+	void add_node(int v, int r, int c);
+	//Create a new node with value v at row r and col c.
+	//If there already exists an element at this position, then just update the node
+	//value at this position to v, and do not create a new node.
+
+	//If v = 0, then check if there is already a node at row r and col c.
+	//If yes, remove that node (i.e., update its value to zero).
+	//If there is no node at row r and col c, then ignore the add_node request because its value is 0.
+
+
+	my_matrix operator+(my_matrix M); //matrix addition
+
+	my_matrix operator*(my_matrix M); //matrix multiplication
+
+
+};
+
+//Initialize a matrix of rows and c cols.
+my_matrix::my_matrix(int r, int c)
+{
+	num_rows = r;
+	num_cols = c;
+	r_vec.resize(r, nullptr);
+	c_vec.resize(c, nullptr);
+}
+
+//Initializa a matrix of r rows, c cols, n nodes, with values randomly in - (k-1) ... (k-1);
+my_matrix::my_matrix(int r, int c, int n, int k)
+{
+	num_rows = r;
+	num_cols = c;
+	r_vec.resize(r, nullptr);
+	c_vec.resize(c, nullptr);
+
+	for (int i = 0; i < n; i++)
+	{
+		int vv = rand() % (2 * k - 1) - (k - 1);
+		int rr = rand() % r;
+		int cc = rand() % c;
+		add_node(vv, rr, cc);
+	}
+}
+
+
+
+void my_matrix::print()
+{
+	cout << endl;
+	for (int i = 0; i < num_rows; i++) {
+		node * p = r_vec[i];
+		cout << endl;
+		while (p != nullptr) {
+			cout << p->value << " " << p->r_position << " " << p->c_position << "  ";
+			p = p->r_next;
+		}
+	}
+}
+
+void my_matrix::add_node(int v, int r, int c)
+{
+	node* lastRNode = r_vec[r];
+	node* lastCNode = c_vec[c];
+	node* currRNode = r_vec[r];
+	node* currCNode = c_vec[c];
+
+	node* newNodeToBeAdded = new node(v, r, c);
+
+	/////////////////////////////////////////////////////////////////////////////
+	// No node is present
+	// so directly connect with r_vec
+	if (currRNode == nullptr)
+	{
+		if (v != 0)
+			r_vec[r] = newNodeToBeAdded;
+		else
+			r_vec[r] = nullptr;
+	}
+
+	//////////////////////////////////////////////////////////////////////////////
+	// a node is present in r_vec
+	// new node should be added before an existing node
+	else if (c < currRNode->c_position)
+	{
+		if (v != 0)
+		{
+			newNodeToBeAdded->r_next = currRNode;
+			r_vec[r] = newNodeToBeAdded;
+		}
+	}
+
+	//////////////////////////////////////////////////////////////////////////////
+	// node is present in r_vec
+	// new node to be added after an existing node
+	// a node exists after the new node
+	else
+	{
+		int i = -1;
+		while (i != 1 && currRNode->c_position < c)
+		{
+			lastRNode = currRNode;
+			currRNode = currRNode->r_next;
+			if (currRNode == nullptr)
+				i = 1;
+		}
+
+		// new node to be added after the last existing node
+		if (currRNode == nullptr && v != 0)
+		{
+			lastRNode->r_next = newNodeToBeAdded;
+		}
+
+		// new node to be added at the same position where a node already exists
+		else if (r_vec[r]->c_position == c)
+		{
+			if (v != 0)
+				currRNode->value = v;
+			else
+			{
+				if (lastRNode == r_vec[r] && currRNode != r_vec[r])
+					r_vec[r]->r_next = lastRNode->r_next->r_next;
+				else if (lastRNode == r_vec[r] && currRNode == r_vec[r])
+					r_vec[r] = lastRNode->r_next;
+				else
+					lastRNode->r_next = currRNode->r_next;
+			}
+		}
+
+		else
+		{
+			if (v != 0)
+			{
+				newNodeToBeAdded->r_next = currRNode;
+				lastRNode->r_next = newNodeToBeAdded;
+			}
+		}
+	}
+
+	// for creating c_vec
+	if (currCNode == nullptr)
+	{
+		if (v != 0)
+			c_vec[c] = newNodeToBeAdded;
+		else
+			c_vec[c] = nullptr;
+	}
+
+	else if (currCNode->r_position > r && v != 0)
+	{
+		newNodeToBeAdded->c_next = currCNode;
+		c_vec[c] = newNodeToBeAdded;
+	}
+
+	else
+	{
+		int i = -1;
+		while (i != 1 && currCNode->r_position < r)
+		{
+			lastCNode = currCNode;
+			currCNode = currCNode->c_next;
+			if (currCNode == nullptr)
+				i = 1;
+		}
+
+		if (currCNode == nullptr)
+		{
+			if (v != 0)
+				lastCNode->c_next = newNodeToBeAdded;
+		}
+		else if (currCNode->r_position == r)
+		{
+			if (v != 0)
+				currCNode->value = v;
+			else
+			{
+				if (lastCNode == c_vec[c] && currCNode != c_vec[c])
+					c_vec[c]->c_next = lastCNode->c_next->c_next;
+				else if (lastCNode == c_vec[c] && currCNode == c_vec[c])
+					c_vec[c] = lastCNode->c_next;
+				else
+					lastCNode->c_next = currCNode->c_next;
+			}
+		}
+		else
+		{
+			if (v != 0)
+			{
+				newNodeToBeAdded->c_next = currCNode;
+				lastCNode->c_next = newNodeToBeAdded;
+			}
+		}
+	}
+}
+
+my_matrix my_matrix::operator+(my_matrix M)
+{
+	// Assuming that the test matrices will always be of the same size
+	// creating a result matrix to store all the values
+	my_matrix resultMatrix(num_rows, num_cols);
+
+	// loop for iterating all the r_vecs
+	for (int rw = 0; rw < num_rows; rw++)
+	{
+		////////////////////////////////////////////////////////////////////////////
+		// case: this.r_vec and M.r_vec both are null ie. don't have any nodes
+		// skip that row
+		if (this->r_vec[rw] == NULL && M.r_vec[rw] == NULL)
+		{
+			break;
+		}
+
+		////////////////////////////////////////////////////////////////////////////
+		// case: this.r_vec has no nodes but M.r_vec has nodes
+		// ie. all r_vec values are 0 of this matrix
+		// copy M.r_vec in the result matrix
+		else if (this->r_vec[rw] == NULL)
+		{
+			node *deepNode = new node();
+			deepNode = M.r_vec[rw];
+			resultMatrix.r_vec[rw] = deepNode;
+		}
+
+		////////////////////////////////////////////////////////////////////////////
+		// case: M.r_vec has no nodes but this.r_vec has nodes
+		// ie. all r_vec values are 0 of M matrix
+		else if (M.r_vec[rw] == NULL)
+		{
+			node *deepNode = new node();
+			deepNode = this->r_vec[rw];
+			resultMatrix.r_vec[rw] = deepNode;
+		}
+
+		///////////////////////////////////////////////////////////////////////////
+		// case: this.r_vec and M.r_vec have values
+		// consider all the possible cases
+		else if (this->r_vec[rw] != NULL && M.r_vec[rw] != NULL)
+		{
+			// pointer to column no. of this and M;
+			int thisNextColPos = -1, mNextColPos = -1;
+			node *thisNextColNode = NULL, *mNextColNode = NULL;
+			int resValue = -1, resPos = -1;
+
+			////////////////////////////////////////////////////////////////////////////////////////////
+			// while traversing through the r-vec and checking the node positions
+
+			thisNextColPos = this->r_vec[rw]->c_position; // pointing to first node's column's position
+			mNextColPos = M.r_vec[rw]->c_position;
+			thisNextColNode = this->r_vec[rw]->c_next; // pointing to first node's column's position
+			mNextColNode = M.r_vec[rw]->c_next;
+
+			// both c-next values are not null ie. both have some nodes left to traverse
+			// if one is null it comes out of the loop
+			while (thisNextColNode != NULL && mNextColNode != NULL) //traversing through all the nodes in 'this' and M matrix
+			{
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				// 1. if the thisNextColPos = mNextColPos
+				//		if yes, that means, iterator value is equal to the column no.s
+				//		add the M.r_vec[]'s value to this->r_vec[]'s value = add node in resultMatrix with these values
+				//		if no, then check for next condition through else if
+				if (thisNextColPos == mNextColPos)
+				{
+					// add the values and add node
+					resValue = M.r_vec[rw]->value + this->r_vec[rw]->value;
+					resPos = M.r_vec[rw]->c_position;
+					resultMatrix.add_node(resValue, rw, resPos);
+
+					// shift to next nodes
+					thisNextColNode = thisNextColNode->c_next;
+					mNextColNode = mNextColNode->c_next;
+				}
+
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				// 2. thisNextColPos < mNextColPos
+				//		ie. this has an element in the column, and M doesn't
+				//		addnode with respective values of 'this' Matrix
+				else if (thisNextColPos < mNextColPos)
+				{
+					// addnode acording to this values
+					resValue = this->r_vec[rw]->value;
+					resPos = this->r_vec[rw]->c_position;
+					resultMatrix.add_node(resValue, rw, resPos);
+
+					// shift 'this' to next node
+					thisNextColNode = thisNextColNode->c_next;
+				}
+
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				// 3. thisNextColPos > mNextColPos
+				//		ie. M has an element in the column and 'this' matrix doesn't
+				//		add node with resp values of M matrix
+				else if (thisNextColPos > mNextColPos)
+				{
+					// addnode acording to M values
+					resValue = M.r_vec[rw]->value;
+					resPos = M.r_vec[rw]->c_position;
+					resultMatrix.add_node(resValue, rw, resPos);
+
+					// shift 'M' to next node
+					mNextColNode = mNextColNode->c_next;
+				}
+
+				// won't execute as all the conditions are covered
+				else
+				{
+					cout << "You've missed some condition!";
+				}
+			}
+
+			// M matrix still have nodes to traverse
+			if (this->r_vec[rw]->c_next == NULL && M.r_vec[rw]->c_next != NULL)
+			{
+				resValue = M.r_vec[rw]->value;
+				resPos = M.r_vec[rw]->c_position;
+				M.r_vec[rw] = M.r_vec[rw]->c_next;
+				resultMatrix.add_node(resValue, rw, resPos);
+			}
+
+			// 'this' matrix still have nodes to traverse
+			else if (M.r_vec[rw]->c_next == NULL && this->r_vec[rw]->c_next != NULL)
+			{
+				resValue = this->r_vec[rw]->value;
+				resPos = this->r_vec[rw]->c_position;
+				this->r_vec[rw] = this->r_vec[rw]->c_next;
+				resultMatrix.add_node(resValue, rw, resPos);
+			}
+
+			// both vecs have no nodes to traverse
+			// this->r_vec[rw]->c_next == NULL && M.r_vec[rw]->c_next == NULL
+			else
+			{
+				//check for next rows
+			}
+		}
+
+		///////////////////////////////////////////////////////////////////////////
+		// won't reach here at all- covered all the conditions
+		else
+		{
+			cout << "You've missed some condition!";
+		}
+	}
+
+
+	return resultMatrix;
+}
+
+my_matrix my_matrix::operator*(my_matrix M)
+{
+	my_matrix resultMatrix(this->num_rows, M.num_cols);
+
+	if (this->num_cols != M.num_rows)
+		cout << "\n Invalid Matrices";
+	else
+	{
+		node* rvecPtr = this->r_vec[0];
+		node* cvecPtr = M.c_vec[0];
+		int resultValue = 0;
+		bool check = true;
+
+		for (int i = 0; i < this->num_rows; i++)
+		{
+			for (int j = 0; j < M.num_cols; j++)
+			{
+				check = true;
+				resultValue = 0;
+				rvecPtr = this->r_vec[i];
+				cvecPtr = M.c_vec[j];
+
+				if (rvecPtr == nullptr)
+					check = false;
+				else if (cvecPtr == nullptr)
+					check = false;
+
+				while (check)
+				{
+					if (rvecPtr->c_position == cvecPtr->r_position)
+					{
+						resultValue += (rvecPtr->value * cvecPtr->value);
+						rvecPtr = rvecPtr->c_next;
+						cvecPtr = cvecPtr->r_next;
+					}
+					else if (rvecPtr->c_position > cvecPtr->r_position)
+					{
+						cvecPtr = cvecPtr->r_next;
+					}
+					else if (rvecPtr->c_position < cvecPtr->r_position)
+					{
+						rvecPtr = rvecPtr->c_next;
+					}
+					if (rvecPtr == nullptr)
+						check = false;
+					else if (cvecPtr == nullptr)
+						check = false;
+				}
+				resultMatrix.add_node(resultValue, i, j);
+			}
+		}
+	}
+	return resultMatrix;
+}
+
+int main()
+{
+	my_matrix M1(7, 5, 11, 8), M2(7, 5, 10, 8), M3(7, 5), M4(5, 6, 13, 9), M5(7, 6);
+	M1.print();
+	M2.print();
+	M3 = M1 + M2;
+	M3.print();
+	M1.print();
+	M4.print();
+	M5 = M1 * M4;
+	M5.print();
+	getchar();
+	getchar();
+	return 0;
+}

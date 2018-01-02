@@ -1,0 +1,1188 @@
+//HW5  AVL Tree
+//Due: Saturday (Nov. 18) at 11:59PM
+
+#include "stdafx.h"
+#include <iostream>			//to use std::cout
+#include <algorithm>		//to use max function such as  i = max(a, b);
+
+#include <vector>
+
+using namespace std;
+
+//You need to use the following node class for each node of the AVL tree
+class node {
+public:
+	int value = -1;
+	int height = -1;
+	int child = -1;			// 0: this node is a left child of its parent; 
+							// 1: this node is a right child; 
+							// -1: this node is the tree root
+	node* parent;			// null: this node is the tree root
+	node* l_child;
+	node* r_child;
+
+	node()
+	{
+
+	}
+
+	node(int i)
+	{
+		value = i;
+		height = 1;
+		parent = l_child = r_child = nullptr;
+	}
+};
+
+class avl_tree
+{
+public:
+	node* root;
+
+	avl_tree()
+	{
+		root = nullptr;
+	}
+
+	void add_node(int i);								//You need to implement this.
+	void in_order_traversal(node *p);					//provided.
+	node * height_adjustment(node *p, int &pattern);	//You need to implement this	
+	void L_Rotate(node *p);								//You need to implement this.
+	void R_Rotate(node *p);								//You need to implement this.
+	void remove_node(int i);							// You need to implement this.
+	node * replace(node * p1);							// You need to implement this.
+};
+
+
+void avl_tree::in_order_traversal(node * p)
+{
+	if (p == nullptr)
+		return;
+
+	in_order_traversal(p->l_child);
+	std::cout << "value = " << p->value << " " << "height = " << p->height << "   ";
+	in_order_traversal(p->r_child);
+}
+
+int main()
+{
+	avl_tree t1;
+	t1.add_node(45);
+	t1.in_order_traversal(t1.root);
+	t1.remove_node(45);
+	t1.in_order_traversal(t1.root);
+	t1.add_node(50);
+	t1.add_node(47);
+	t1.add_node(30);
+	t1.add_node(35);
+	t1.in_order_traversal(t1.root);
+	t1.remove_node(47);
+	t1.in_order_traversal(t1.root);
+	getchar();
+	getchar();
+	return 0;
+
+}
+
+void avl_tree::add_node(int i)
+{
+	node* actionNode = root;
+
+	// add the new node
+	if (actionNode == nullptr)
+	{
+		// adding the root node
+		root = new node(i);
+		root->value = i;
+		root->child = -1; // it is the root node
+		root->parent = nullptr;
+		root->height = 1;
+	}
+	else
+	{
+		// node to be inserted is not a root node
+		// create a complete new node
+		node* newNodeToBeAdded = new node(i);
+		newNodeToBeAdded->value = i;
+		newNodeToBeAdded->height = 1;
+
+		// these need to be changed accordingly
+		newNodeToBeAdded->child = 0; // it is the left child of the parent
+		newNodeToBeAdded->parent = root;
+
+		node* listEnd = actionNode;
+		node* parentOfListEndNode = actionNode;
+		bool leftSideFlag = true;
+
+		while (listEnd->l_child != nullptr || listEnd->r_child != nullptr)
+		{
+			if (newNodeToBeAdded->value <= listEnd->value && listEnd->l_child != nullptr)	// left list
+			{
+				listEnd = listEnd->l_child;
+				leftSideFlag = true;
+			}
+			else if (newNodeToBeAdded->value > listEnd->value && listEnd->r_child != nullptr)	// i > leftEnd->value	// right list
+			{
+				listEnd = listEnd->r_child;
+				leftSideFlag = false;
+			}
+			else if ((listEnd->l_child != nullptr && listEnd->r_child == nullptr) || (listEnd->l_child == nullptr && listEnd->r_child != nullptr))
+			{
+				break;
+			}
+			parentOfListEndNode = listEnd;
+		}
+
+		if ((listEnd->l_child == nullptr || listEnd->r_child == nullptr) || listEnd == root)	//ie. listEnd is the root node
+		{
+			// insert new node in the end
+			newNodeToBeAdded->parent = parentOfListEndNode;
+			int newActionNodeValue = listEnd->value;
+
+			if (newNodeToBeAdded->value > newActionNodeValue)
+			{
+				leftSideFlag = false;
+			}
+			else
+			{
+				leftSideFlag = true;
+			}
+
+			// add new node
+			if (leftSideFlag == false)
+			{
+				newNodeToBeAdded->child = 1; // the new node is a right child of the parent
+				listEnd->r_child = newNodeToBeAdded;
+			}
+			else
+			{
+				newNodeToBeAdded->child = 0; // the new node is a left child of the parent
+				listEnd->l_child = newNodeToBeAdded;
+			}
+		}
+
+		// <----------------------------------------new node added
+
+		/////////////////////////////////////////////////////////////////////////////////////
+		// Adjust Height and check for imbalance
+		node *p = newNodeToBeAdded;
+		node* imBalancedNode = nullptr;
+
+		int pattern = 0;
+
+		//cout << endl;
+		// call height adjustment to adjust the heights accordingly
+		imBalancedNode = height_adjustment(p, pattern);
+		//std::cout << "p: " << p->value << "\t pattern: " << pattern << endl;
+
+		// for height adjustment of 'Z'
+		node* tempImBalancedParentPtr = nullptr;
+		int tempImBalancedParentHeight;
+		if (imBalancedNode != nullptr && imBalancedNode->parent != nullptr)
+		{
+			tempImBalancedParentPtr = imBalancedNode->parent;
+			tempImBalancedParentHeight = tempImBalancedParentPtr->height;
+		}
+
+		// call appropriate rotate method for balancing
+		switch (pattern)
+		{
+		case 1:							// ie. Left-Left Case then rotate Right
+			R_Rotate(imBalancedNode);
+
+			tempImBalancedParentPtr = imBalancedNode->r_child;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 2;
+				imBalancedNode->r_child->height = tempImBalancedParentHeight;
+			}
+
+			break;
+
+		case 2: 						// ie. Left-Right Case then rotate Left; then rotate Right
+			L_Rotate(imBalancedNode);
+			tempImBalancedParentPtr = imBalancedNode->parent;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+				imBalancedNode->parent->height = tempImBalancedParentHeight;
+				imBalancedNode->height = imBalancedNode->height = 1;
+			}
+
+			imBalancedNode = imBalancedNode->parent;
+			R_Rotate(imBalancedNode);
+			tempImBalancedParentPtr = imBalancedNode->r_child;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+				imBalancedNode->r_child->height = tempImBalancedParentHeight;
+			}
+
+			break;
+
+		case 3:							// ie. Right-Left Case then rotate Right; then rotate Left
+			R_Rotate(imBalancedNode);
+			tempImBalancedParentPtr = imBalancedNode->parent;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+				imBalancedNode->parent->height = tempImBalancedParentHeight;
+				imBalancedNode->height = imBalancedNode->height = 1;
+			}
+
+			imBalancedNode = imBalancedNode->parent;
+			L_Rotate(imBalancedNode);
+			tempImBalancedParentPtr = imBalancedNode->l_child;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+				imBalancedNode->l_child->height = tempImBalancedParentHeight;
+			}
+
+			break;
+
+		case 4:							// ie. Right-Right Case then rotate Left
+			L_Rotate(imBalancedNode);
+
+			tempImBalancedParentPtr = imBalancedNode->l_child;
+
+			// adjust height of 'Z' node
+			if (tempImBalancedParentPtr != nullptr)
+			{
+				tempImBalancedParentHeight = tempImBalancedParentHeight - 2;
+				imBalancedNode->l_child->height = tempImBalancedParentHeight;
+			}
+			break;
+
+		default:
+			//std::cout << "Pattern Value: " << pattern << endl;
+			//std::cout << "No Rotation" << endl;
+			std::cout << endl;
+		}
+
+		do
+		{
+			// traverse node p to it's parent
+			if (p != nullptr)
+			{
+				p = p->parent;
+				height_adjustment(p, pattern);
+			}
+
+		} while (p != nullptr && p != root);
+
+		// adjust root's height
+		height_adjustment(root, pattern);
+	}
+}
+
+/*
+This function is invoked by add_node and remove_node.
+p points to the first node that we need to check for possible height update.  We then need to check possible height update toward root.
+All nodes whose heights need to be updated will be performed in this function.
+*
+If no imbalance is detected, the function returns nullptr.
+If an imbalance is detected, the funciton returns the address of Action Node.
+In addition, value of pattern will be set to 1 (for LL), 2 (for LR), 3 (for RL), 4 (for RR);
+*/
+node* avl_tree::height_adjustment(node *p, int &pattern)
+{
+	node* heightUpdateNode = p;	// 'y' node
+	int parentHeight = 0;
+
+	do
+	{
+		// root node
+		if (heightUpdateNode == root)
+		{
+			int leftChildHeight = 0, rightChildHeight = 0;
+
+			if (heightUpdateNode->l_child != nullptr)
+				leftChildHeight = heightUpdateNode->l_child->height;
+			if (heightUpdateNode->r_child != nullptr)
+				rightChildHeight = heightUpdateNode->r_child->height;
+
+			// atleast one child is present
+			if (heightUpdateNode->l_child != nullptr || heightUpdateNode->r_child != nullptr)
+			{
+				if (leftChildHeight >= rightChildHeight)
+					heightUpdateNode->height = leftChildHeight + 1;
+				else
+				{
+					heightUpdateNode->height = rightChildHeight + 1;
+				}
+				heightUpdateNode = heightUpdateNode->parent;
+			}
+			else			// no child
+			{
+				heightUpdateNode->height = 1;
+				heightUpdateNode = heightUpdateNode->parent;
+			}
+
+		}
+		// leaf node
+		else if (heightUpdateNode->l_child == nullptr && heightUpdateNode->r_child == nullptr)
+		{
+			heightUpdateNode->height = 1;
+			parentHeight = heightUpdateNode->height + 1;	// next value to be updated
+			heightUpdateNode = heightUpdateNode->parent;	// move to parent
+		}
+		// not a leaf node
+		else
+		{
+			int calcLeftChildParentHeight = 0;
+			int calcRightChildParentHeight = 0;
+
+			// either will have a left child or a right child
+
+			// get value of left child // calculate left child's parent temp value
+			if (heightUpdateNode->l_child != nullptr)
+				calcLeftChildParentHeight = heightUpdateNode->l_child->height + 1;
+
+			// get value of right child // calculate right child's parent temp value
+			if (heightUpdateNode->r_child != nullptr)
+				calcRightChildParentHeight = heightUpdateNode->r_child->height + 1;
+
+			// compare calculated Child Heights // whichever calc height is greater update in heightUpdateNode 
+			if (calcLeftChildParentHeight >= calcRightChildParentHeight)
+				heightUpdateNode->height = calcLeftChildParentHeight;
+			if (calcLeftChildParentHeight < calcRightChildParentHeight)
+				heightUpdateNode->height = calcRightChildParentHeight;
+
+			// move to parent
+			heightUpdateNode = heightUpdateNode->parent;
+		}
+	} while (heightUpdateNode != nullptr);
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// check for imbalance
+	node* imBalancedNode = new node(-1);
+
+	node* ptr = p;
+	int count = 0;
+
+	while (ptr != root)
+	{
+		if (count > 0)
+		{
+			ptr = ptr->parent;
+		}
+		count++;
+
+		if (p->parent != nullptr)
+		{
+			int diff = 0;
+			node* leftParentPtr = nullptr;
+			node* rightParentPtr = nullptr;
+
+			int leftParentPtrHeight = 0;
+			int rightParentPtrHeight = 0;
+
+			if (p->parent->parent != nullptr)
+			{
+				node* parentPtr = p->parent; // actual new node's parent; 'y'
+											 // get details of it's parents node's both childs
+				node* grandParentPtr = parentPtr->parent;	// 'z'
+				leftParentPtr = grandParentPtr->l_child;	// 'T4' or 'y'
+				rightParentPtr = grandParentPtr->r_child;	// 'y' or 'T4'
+
+				if (leftParentPtr != nullptr)
+					leftParentPtrHeight = grandParentPtr->l_child->height;
+				if (rightParentPtr != nullptr)
+					rightParentPtrHeight = grandParentPtr->r_child->height;
+
+				diff = leftParentPtrHeight - rightParentPtrHeight; // can be 0 too
+			}
+			else if (p->parent->parent == nullptr)
+			{
+				node* tempRoot = root;
+
+				if (tempRoot->l_child != nullptr)
+				{
+					leftParentPtr = tempRoot->l_child;
+					leftParentPtrHeight = leftParentPtr->height;
+				}
+				if (tempRoot->r_child != nullptr)
+				{
+					rightParentPtr = tempRoot->r_child;
+					rightParentPtrHeight = rightParentPtr->height;
+				}
+
+				diff = leftParentPtrHeight - rightParentPtrHeight;
+			}
+
+			// if diff. in height of child is more than 1, then send the node back to add node
+			// if not, then send back null
+			if (diff > 1 || diff < -1)
+			{
+				if (leftParentPtrHeight > rightParentPtrHeight)		// left side is greater ie. can be LL(1) case or LR(2) case
+				{
+					node* leftChildPtr = leftParentPtr->l_child;	// 'T3' or 'x'
+					node* rightChildPtr = leftParentPtr->r_child;	// 'x' or 'T3'
+					int leftChildPtrHeight = 0;
+					int rightChildPtrHeight = 0;
+
+					if (leftChildPtr != nullptr)
+						leftChildPtrHeight = leftParentPtr->l_child->height;
+					if (rightChildPtr != nullptr)
+						rightChildPtrHeight = leftParentPtr->r_child->height;
+
+					imBalancedNode = leftParentPtr;
+					//std::cout << "Height imbalance detected" << endl;
+
+					// check for x node and update pattern
+					// if 'y' has a left child --> LL case; 
+					if (leftParentPtr->l_child != nullptr && leftParentPtr->l_child->child == 0 && leftChildPtrHeight > rightChildPtrHeight)
+						pattern = 1;
+					// if 'y' has a right child --> LR case
+					else if (leftParentPtr->r_child != nullptr && leftParentPtr->r_child->child == 1 && rightChildPtrHeight > leftChildPtrHeight)
+					{
+						pattern = 2;
+					}
+					else
+					{
+						pattern = -1;
+					}
+				}
+				else // right side is greater ie. can be RR(4) case or RL(3) case
+				{
+					node* leftChildPtr = rightParentPtr->l_child;	// 'T3' or 'x'
+					node* rightChildPtr = rightParentPtr->r_child;	// 'x' or 'T3'
+					int leftChildPtrHeight = 0;
+					int rightChildPtrHeight = 0;
+
+					if (leftChildPtr != nullptr)
+						leftChildPtrHeight = rightParentPtr->l_child->height;
+					if (rightChildPtr != nullptr)
+						rightChildPtrHeight = rightParentPtr->r_child->height;
+
+					imBalancedNode = rightParentPtr;
+					//std::cout << "Height imbalance detected" << endl;
+
+					// check for x node and update pattern
+					// if 'y' has a right child --> RR case
+					if (rightParentPtr->r_child != nullptr && rightParentPtr->r_child->child == 1 && rightChildPtrHeight > leftChildPtrHeight)
+						pattern = 4;
+					// if 'y' has a left child --> RL case;
+					else if (rightParentPtr->l_child != nullptr && rightParentPtr->l_child->child == 0 && leftChildPtrHeight > rightChildPtrHeight)
+					{
+						pattern = 3;
+					}
+					else
+					{
+						pattern = -1;
+					}
+				}
+			}
+			else		// does not need balancing
+			{
+				imBalancedNode = nullptr;
+			}
+		}
+
+		if (imBalancedNode != nullptr)
+		{
+			//cout << "\n Imbalance detected" << endl;
+			break;
+		}
+		p = p->parent;
+	}
+
+	return imBalancedNode;
+}
+
+// p points to the node around which the rotation will be performed.
+void avl_tree::L_Rotate(node *p)
+{
+	//cout << "Performing L Rotate on: " << p->value << endl;
+	node* parentPtr = p;	// 'y'; around which the rotation will be performed
+
+	// get details of it's parents node's both childs
+	node* grandParentPtr = parentPtr->parent;			// 'z'
+	node* rightChildPtr = parentPtr->r_child;			// 'x'
+	node* leftChildPtr = parentPtr->l_child;			// 'T3'
+	node* greatGrandParent = nullptr;					// 'z's parent
+	int updateGreatGrandParentLeftChild = -1;			// -1 if root; 1 if left; 2 if right
+
+	if (parentPtr->parent != nullptr && parentPtr->parent->parent != nullptr)
+	{
+		greatGrandParent = parentPtr->parent->parent;	// 'z's parent
+	}
+
+	// check if 'z' is a left child or a right child of greatGrandParent
+	if (grandParentPtr->child == 0) // 'z' is left child
+	{
+		updateGreatGrandParentLeftChild = 1;
+	}
+	else if (grandParentPtr->child == 1)  // 'z' is a right child
+	{
+		updateGreatGrandParentLeftChild = 2;
+	}
+	else
+	{
+		// don't have updateGreatGrandParentLeftChild
+		//cout << "Can't find if Z is a left or a right child!" << endl;
+		//cout << "Maybe Z is itself a root?";
+	}
+
+	// save all values to temp variables
+	node* tempZ = grandParentPtr;
+	node* tempZParent = grandParentPtr->parent;
+	int tempZChild = grandParentPtr->child;
+	bool tempZRoot = false;
+
+	if (tempZ->child == -1)
+		tempZRoot = true;
+	node* tempY = parentPtr;
+	node* tempYLChild = parentPtr->l_child;
+	node* tempYRChild = parentPtr->r_child;
+
+	if ((rightChildPtr != nullptr && rightChildPtr->child == 1)		// 'x'
+		&& (parentPtr->parent != nullptr && parentPtr->child == 1))	// 'Zs' Right
+	{
+		// Rotation process for Right Right Case
+
+		// Z's Parent's Child => Y
+		if (updateGreatGrandParentLeftChild == 1)
+		{
+			greatGrandParent->l_child = tempY;
+			greatGrandParent->l_child->child = 0;
+		}
+		else if (updateGreatGrandParentLeftChild == 2)
+		{
+			greatGrandParent->r_child = tempY;
+			greatGrandParent->r_child->child = 1;
+		}
+
+		// Y's Parent => Z's Parent
+		parentPtr->parent = tempZParent;
+
+		// Z's rightChild => Y's leftChild
+		// Y's leftChild's Parent => Z
+		grandParentPtr->r_child = tempYLChild;
+		if (parentPtr->l_child != nullptr)
+			parentPtr->l_child->parent = tempZ;
+
+		// Y's LeftChild => Z
+		// Z's Child => 0
+		// Z's Parent => Y
+		parentPtr->l_child = tempZ;
+		grandParentPtr->child = 0;	// as it is a L-Rotate
+		grandParentPtr->parent = tempY;
+		
+		if(grandParentPtr->r_child != nullptr)
+			grandParentPtr->r_child->child = 1;
+
+		// update if root
+		if (tempZRoot)
+		{
+			tempY->child = -1;
+			tempY->parent = nullptr;
+			root = tempY;
+		}
+	}
+	else if ((rightChildPtr != nullptr && rightChildPtr->child == 1)		// 'x'
+		&& (parentPtr->parent != nullptr && parentPtr->child == 0))	// 'Zs' Left
+	{
+		node* tempX = parentPtr->r_child;	// 'X'
+		node* tempXLChild = tempX->l_child;	// 'T2'
+		node* tempXRChild = tempX->r_child;	// 'T3'
+
+		// Rotation process for Left Right Case
+
+		// Z's leftChild => Y's rightChild
+		// Y's rightChild's Parent => Z
+		grandParentPtr->l_child = tempX;
+		if (rightChildPtr != nullptr)
+			rightChildPtr->parent = tempZ;
+
+		// Y's RightChild => X's LeftChild		
+		// X's LeftChild's parent => Y			
+		parentPtr->r_child = tempX->l_child;
+		if(rightChildPtr != nullptr && rightChildPtr->l_child != nullptr)
+			rightChildPtr->l_child->parent = tempY;
+
+		// X's LeftChild (T2)'s child => 1					
+		// X's Child => 0; was 1
+		if (rightChildPtr != nullptr && rightChildPtr->l_child != nullptr)
+			rightChildPtr->l_child->child = 1;
+		rightChildPtr->child = 0;
+
+		// X's LeftChild => tempY		
+		// Y's Parent => X				
+		rightChildPtr->l_child = tempY;
+		parentPtr->parent = tempX;
+	}
+	else 	// 'x' is not the right child
+	{
+		/*
+		std::cout << "Something is not right in L_Rotate" << endl;
+		std::cout << "check the value of" << rightChildPtr->value << "\'s child!" << endl;
+		*/
+	}
+}
+
+// p points to the node around which the rotation will be performed.
+void avl_tree::R_Rotate(node *p)
+{
+	//cout << "Performing R Rotate on: " << p->value << endl;
+	node* parentPtr = p;		// 'y'; around which the rotation will be performed
+
+	// get details of it's parents node's both childs
+	node* grandParentPtr = parentPtr->parent;			// 'z'
+	node* rightChildPtr = parentPtr->r_child;			// 'T3'
+	node* leftChildPtr = parentPtr->l_child;			// 'x'
+	node* greatGrandParent = nullptr;					// 'z's parent
+	int updateGreatGrandParentLeftChild = -1;			// -1 if root; 1 if left; 2 if right
+
+	if (parentPtr->parent != nullptr && parentPtr->parent->parent != nullptr)
+	{
+		greatGrandParent = parentPtr->parent->parent;	// 'z's parent
+	}
+
+	// check if 'z' is a left child or a right child of greatGrandParent
+	if (grandParentPtr->child == 0)					 // 'z' is left child
+	{
+		updateGreatGrandParentLeftChild = 1;
+	}
+	else if (grandParentPtr->child == 1)			// 'z' is a right child
+	{
+		updateGreatGrandParentLeftChild = 2;
+	}
+	else
+	{
+		// don't have updateGreatGrandParentLeftChild
+		//cout << "Can't find if Z is a left or a right child!" << endl;
+		//cout << "Maybe Z is itself a root?";
+	}
+
+	// save all values to temp variables
+	node* tempZ = grandParentPtr;
+	node* tempZParent = grandParentPtr->parent;
+	int tempZChild = grandParentPtr->child;
+	bool tempZRoot = false;
+
+	if (tempZ->child == -1)
+		tempZRoot = true;
+	node* tempY = parentPtr;
+	node* tempYLChild = parentPtr->l_child;
+	node* tempYRChild = parentPtr->r_child;
+
+	if ((leftChildPtr != nullptr && leftChildPtr->child == 0)		// 'x'
+		&& (parentPtr->parent != nullptr && parentPtr->child == 0))	// 'Zs' Left
+	{
+		// Rotation process for Left Left Case
+
+		// Z's Parent's Child => Y
+		if (updateGreatGrandParentLeftChild == 1)
+		{
+			greatGrandParent->l_child = tempY;
+			greatGrandParent->l_child->child = 0;
+		}
+		else if (updateGreatGrandParentLeftChild == 2)
+		{
+			greatGrandParent->r_child = tempY;
+			greatGrandParent->r_child->child = 1;
+		}
+
+		// Y's Parent => Z's Parent
+		parentPtr->parent = tempZParent;
+
+		// Z's leftChild => Y's rightChild
+		// Y's rightChild's Parent => Z
+		grandParentPtr->l_child = tempYRChild;
+		if (parentPtr->r_child != nullptr)
+			parentPtr->r_child->parent = tempZ;
+
+		// Y's RightChild => Z
+		// Z's Child => 1
+		// Z's Parent => Y
+		parentPtr->r_child = tempZ;
+		grandParentPtr->child = 1;	// as it is a R-Rotate
+		grandParentPtr->parent = tempY;
+
+		if(grandParentPtr->l_child != nullptr)
+			grandParentPtr->l_child->child = 0;	// it shifts to left side
+
+		// update if root
+		if (tempZRoot)
+		{
+			tempY->child = -1;
+			tempY->parent = nullptr;
+			root = tempY;
+		}
+	}
+	else if ((leftChildPtr != nullptr && leftChildPtr->child == 0)		// 'x'
+		&& (parentPtr->parent != nullptr && parentPtr->child == 1))		// 'Zs' Right
+	{
+		node* tempX = parentPtr->l_child;	// 'X'
+		node* tempXLChild = tempX->l_child;	// 'T3'
+		node* tempXRChild = tempX->r_child;	// 'T2'
+
+		// Rotation process for Right Left Case
+
+		grandParentPtr->r_child = tempX;
+		if (leftChildPtr != nullptr)
+			leftChildPtr->parent = tempZ;
+
+		// Y's leftChild => X's rightChild		
+		// X's rightChild's parent => Y			
+		parentPtr->l_child = tempX->r_child;
+		if (leftChildPtr != nullptr && leftChildPtr->r_child != nullptr)
+			leftChildPtr->r_child->parent = tempY;
+
+		// X's RightChild (T2)'s child => 1
+		// X's Child => 0; was 1
+		if (leftChildPtr != nullptr && leftChildPtr->r_child != nullptr)
+			leftChildPtr->r_child->child = 1;
+		leftChildPtr->child = 0;
+
+		//parentPtr->child = 1;	
+		leftChildPtr->child = 1;	
+		
+		// X's rightChild => tempY	
+		// Y's Parent => X			
+		leftChildPtr->r_child = tempY;
+		parentPtr->parent = tempX;
+
+		// saturday night
+		if (parentPtr->l_child != nullptr)
+			parentPtr->l_child->child = 0;	// after switching it should be on the left hand side
+
+	}
+	else 	// 'x' is not the left child
+	{
+		//std::cout << "Something is not right in R_Rotate" << endl;
+		//std::cout << "check the value of" << rightChildPtr->value << "\'s child!" << endl;
+	}
+}
+
+//Remove the node with value i.  Assume that all node values are distinct.
+void avl_tree::remove_node(int i)
+{
+	// find the node with int i
+	node* nodeToBeRemoved = nullptr;
+	int searchValue = i;
+	node* nodeToBeChecked = root;
+
+	if (root != nullptr)
+	{
+		// find the node to be removed
+		while (nodeToBeChecked != nullptr)
+		{
+			if (searchValue == nodeToBeChecked->value)
+			{
+				nodeToBeRemoved = nodeToBeChecked;
+				nodeToBeChecked = nodeToBeChecked->l_child;
+			}
+
+			// traverse the left side
+			if (nodeToBeChecked != nullptr && nodeToBeChecked->l_child != nullptr && searchValue < nodeToBeChecked->value)
+			{
+				nodeToBeChecked = nodeToBeChecked->l_child;
+			}
+			// traverse the right side
+			else if (nodeToBeChecked != nullptr && nodeToBeChecked->r_child != nullptr && searchValue > nodeToBeChecked->value)
+			{
+				nodeToBeChecked = nodeToBeChecked->r_child;
+			}
+			else
+			{
+				// you found the node but are still checking and reach the end of the list too
+				//std::cout << "Search Completed!" << endl;
+				break;
+			}
+		}
+
+		if (nodeToBeRemoved == nullptr)
+		{
+			// come out of the remove_node function
+			//std::cout << "Node " << i << "not found" << endl;
+		}
+		else
+		{
+			//std::cout << "Node: " << nodeToBeRemoved->value << "\t Height: " << nodeToBeRemoved->height << endl;
+
+			// call replace to replace the removed node
+			node* replacementParent = nullptr;
+			replacementParent = replace(nodeToBeRemoved);
+
+			/////////////////////////////////////////////////////////////////////////////////////
+			// Adjust Height and check for imbalance
+			// call height adjustment on the parent of the replacement node
+			// if there is an imbalance rotate appropriately
+
+			if (replacementParent != nullptr) // if the root is removed then replacementParent will be null
+			{
+				node *p = replacementParent;
+				node* imBalancedNode = nullptr;
+
+				int pattern = 0;
+
+				//std::cout << endl;
+
+				// call height adjustment to adjust the heights accordingly
+				imBalancedNode = height_adjustment(p, pattern);
+				//std::cout << "p: " << p->value << "\t pattern: " << pattern << endl;
+
+				// for height adjustment of 'Z'
+				node* tempImBalancedParentPtr = nullptr;
+				int tempImBalancedParentHeight;
+				if (imBalancedNode != nullptr && imBalancedNode->parent != nullptr)
+				{
+					tempImBalancedParentPtr = imBalancedNode->parent;
+					tempImBalancedParentHeight = tempImBalancedParentPtr->height;
+				}
+
+				// call appropriate rotate method for balancing
+				switch (pattern)
+				{
+				case 1:		// ie. Left-Left Case then rotate Right
+					R_Rotate(imBalancedNode);
+
+					tempImBalancedParentPtr = imBalancedNode->r_child;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 2;
+						imBalancedNode->r_child->height = tempImBalancedParentHeight;
+					}
+
+					break;
+
+				case 2: 	// ie. Left-Right Case then rotate Left; then rotate Right
+					L_Rotate(imBalancedNode);
+					tempImBalancedParentPtr = imBalancedNode->parent;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+						imBalancedNode->parent->height = tempImBalancedParentHeight;
+						imBalancedNode->height = imBalancedNode->height = 1;
+					}
+
+					imBalancedNode = imBalancedNode->parent;
+					R_Rotate(imBalancedNode);
+					tempImBalancedParentPtr = imBalancedNode->r_child;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+						imBalancedNode->r_child->height = tempImBalancedParentHeight;
+					}
+
+					break;
+
+				case 3:		// ie. Right-Left Case then rotate Right; then rotate Left
+					R_Rotate(imBalancedNode);
+					tempImBalancedParentPtr = imBalancedNode->parent;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+						imBalancedNode->parent->height = tempImBalancedParentHeight;
+						imBalancedNode->height = imBalancedNode->height = 1;
+					}
+
+					imBalancedNode = imBalancedNode->parent;
+					L_Rotate(imBalancedNode);
+					tempImBalancedParentPtr = imBalancedNode->l_child;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 1;
+						imBalancedNode->l_child->height = tempImBalancedParentHeight;
+					}
+
+					break;
+
+				case 4:		// ie. Right-Right Case then rotate Left
+					L_Rotate(imBalancedNode);
+
+					tempImBalancedParentPtr = imBalancedNode->l_child;
+
+					// adjust height of 'Z' node
+					if (tempImBalancedParentPtr != nullptr)
+					{
+						tempImBalancedParentHeight = tempImBalancedParentHeight - 2;
+						imBalancedNode->l_child->height = tempImBalancedParentHeight;
+					}
+					break;
+
+				default:
+					//std::cout << "Pattern Value: " << pattern << endl;
+					//std::cout << "No Rotation" << endl;
+					std::cout << endl;
+				}
+
+				do
+				{
+					// traverse node p to it's parent
+					if (p != nullptr)
+					{
+						p = p->parent;
+						height_adjustment(p, pattern);
+					}
+
+				} while (p != nullptr && p != root);
+
+				// adjust root's height
+				height_adjustment(root, pattern);
+			}
+		}
+	}
+}
+
+/*
+This funciton is invoked by the remove_node.
+p1 points to the node to be removed. The function returns the first node we need to check for
+possible height update after a node replcement.
+*/
+node* avl_tree::replace(node* p1)
+{
+	node* replacement = nullptr;
+	node* nodeToBeRemoved = p1;
+	node* tempNodeToBeChecked = p1;
+
+	bool leftChildPresentOfRightMostNodeofLChild = false;
+	node* leftChildOfRightMostNodeofLChild = nullptr;
+
+	bool leftChildPresentOfLChild = false;
+	node* leftChildOfLChild = nullptr;
+
+	// search the left child node if present, for the greatest value, ie. left child's right-most leaf node
+	if (tempNodeToBeChecked != nullptr && tempNodeToBeChecked->l_child != nullptr)
+	{
+		node* tempRightMostNodeofLChild = nullptr;
+		tempRightMostNodeofLChild = tempNodeToBeChecked->l_child;
+
+		while (tempRightMostNodeofLChild != nullptr)
+		{
+			// move to right child of left node
+			replacement = tempRightMostNodeofLChild;
+			tempRightMostNodeofLChild = tempRightMostNodeofLChild->r_child;
+		}
+
+		// tempLChild might still have a left child
+		if (nodeToBeRemoved->l_child != nullptr && replacement == nodeToBeRemoved->l_child && replacement->l_child != nullptr)
+		{
+			leftChildPresentOfLChild = true;
+			leftChildOfLChild = replacement->l_child;
+		}
+		// tempRightMostNodeofLChild might still have a left child
+		else if (nodeToBeRemoved->l_child != nullptr && replacement != nodeToBeRemoved->l_child && replacement->l_child != nullptr)
+		{
+			leftChildPresentOfRightMostNodeofLChild = true;
+			leftChildOfRightMostNodeofLChild = replacement->l_child;
+		}
+		// <------------------gets the rightmost left node
+	}
+
+	// if left child is not present then search the right child, for the lowest value, ie. right child's left-most leaf node
+	else if (tempNodeToBeChecked != nullptr && tempNodeToBeChecked->l_child == nullptr && tempNodeToBeChecked->r_child != nullptr)
+	{
+		node* tempLeftMostNodeofRChild = nullptr;
+		tempLeftMostNodeofRChild = tempNodeToBeChecked->r_child;
+
+		while (tempLeftMostNodeofRChild != nullptr)
+		{
+			// move to right child of left node
+			replacement = tempLeftMostNodeofRChild;
+			tempLeftMostNodeofRChild = tempLeftMostNodeofRChild->l_child;
+		}
+		// <------------------gets the leftmost right node
+	}
+	// no right child and no left child ie. it is a leaf node
+	else if(tempNodeToBeChecked != nullptr && tempNodeToBeChecked->l_child == nullptr && tempNodeToBeChecked->r_child == nullptr)
+	{
+		replacement = nullptr;
+	}
+	else
+	{
+		//std::cout << "Invalid Condition in replace node function!" << endl;
+	}
+
+	// replacement node will always be a root node, either left or right
+	node* replacementParent = nullptr;		// return replacementParent so it's height can be adjusted
+
+	// nodeToBeRemoved is a leaf node or the only root node left
+	if (replacement == nullptr)
+	{
+		//std::cout << "No Node to replace! Node to be removed is a leaf Node!" << endl;
+		replacement = nodeToBeRemoved;
+
+		// Find parent of the replacement node
+		if (replacement->parent != nullptr)
+		{
+			replacementParent = replacement->parent;
+
+			// Delete the node directly
+			// check if it is a right or a left child of the parent
+			if (replacementParent->l_child != nullptr && nodeToBeRemoved->child == 0)	// left child
+			{
+				replacementParent->l_child = nullptr;
+			}
+			else if (replacementParent->r_child != nullptr && nodeToBeRemoved->child == 1)	// right child
+			{
+				replacementParent->r_child = nullptr;
+			}
+			else // here: replacementParent->r_child and replacementParent->l_child both cannot be null
+			{
+				// so, something wrong with the child values
+				//std::cout << "Invalid Child Value for leaf node in Remove function" << endl;
+			}
+		}
+		// the only node left is the root node, with no childs
+		else if (replacement->parent == nullptr)
+		{
+			// this is the only valid condition for this case
+			if (replacement->l_child == nullptr && replacement->r_child == nullptr)
+			{
+				root = nullptr;
+			}
+		}
+	}
+	else	// nodeToBeRemoved is not a leaf node and not the only root node left
+	{
+		bool removeRootNode = false;
+		node* tempReplacementNode = replacement;
+
+		// Case 2: deleteNode --> leftChild's leftChild
+		if (leftChildPresentOfLChild == true)
+		{
+			// update the height of replacement->parent before sending it to height adjustment
+			tempReplacementNode = replacement;
+
+			node* tempRepPar = nullptr;
+			if (replacement->parent != nullptr)
+			{
+				tempRepPar = replacement->parent;
+				leftChildOfLChild->parent = tempRepPar;
+			}
+			nodeToBeRemoved->l_child = leftChildOfLChild;
+			//<------------------- replacement node is removed
+
+			// update height
+			int tempRightLeafHeight = 0;
+			int tempLeftChildHeight = 0;
+
+			if (tempRepPar->r_child != nullptr)
+				tempRightLeafHeight = tempRepPar->r_child->height;
+			if (tempRepPar->l_child != nullptr)
+				tempLeftChildHeight = tempRepPar->l_child->height;
+
+			if (tempRightLeafHeight >= tempLeftChildHeight)
+				replacement->parent->height = tempRightLeafHeight + 1;
+			else if (tempLeftChildHeight > tempRightLeafHeight)
+				replacement->parent->height = tempLeftChildHeight + 1;
+
+			replacementParent = leftChildOfLChild;
+			//<-------------------- replacement node is removed
+		}
+		// Case 1: deleteNode --> leftChild --> rightChild's leftChild
+		else if (leftChildPresentOfRightMostNodeofLChild == true)
+		{
+			// replacementNode's parent should be connected to the leftChildOfRightMostNodeofLChild
+			node* tempRepPar = replacement->parent;
+
+			// disconnect the leftChildOfRightMostNodeofLChild from the tempReplacementNode
+			tempReplacementNode->l_child = nullptr;	// anyway we'll only be exchanging values
+
+			leftChildOfRightMostNodeofLChild->parent = tempRepPar;				// leftChildOfRightMostNodeofLChild connected with parent
+			leftChildOfRightMostNodeofLChild->child = 1;						// now it becomes the right node
+			replacement->parent->r_child = leftChildOfRightMostNodeofLChild;	// parent connected with leftChildOfRightMostNodeofLChild
+
+			// update the height of replacement->parent before sending it to height adjustment
+			tempRepPar = replacement->parent;
+			int tempRightLeafHeight = 0;
+			int tempLeftChildHeight = 0;
+
+			if(tempRepPar->r_child != nullptr)
+				tempRightLeafHeight = tempRepPar->r_child->height;
+			if(tempRepPar->l_child != nullptr)
+				tempLeftChildHeight = tempRepPar->l_child->height;
+
+			if (tempRightLeafHeight >= tempLeftChildHeight)
+				replacement->parent->height = tempRightLeafHeight + 1;
+			else if (tempLeftChildHeight > tempRightLeafHeight)
+				replacement->parent->height = tempLeftChildHeight + 1;
+			
+			replacementParent = leftChildOfRightMostNodeofLChild;
+			//<-------------------- replacement node is removed
+		}
+		else
+		{
+			// Find parent of the replacement node
+			if (replacement->parent != nullptr)
+			{
+				replacementParent = replacement->parent;
+			}
+			else if (replacement->parent == nullptr) // root node
+			{
+				removeRootNode = true;
+			}
+
+			// Swap values: remove the node, and replace it
+
+			// remove the replacement node from it's original position
+
+			// Check if replacement node has a left node
+			if (replacement->l_child != nullptr && replacement->r_child == nullptr)
+			{
+				// then don't remove the replacement node; just place it in remove node's position
+			}
+			// disconnect replacement node from it's parent
+			// check if replacement node is a left child or a right child
+			else if (replacement->child == 0)	// left child
+			{
+				replacementParent->l_child = nullptr;
+			}
+			else if (replacement->child = 1)	// right child
+			{
+				replacementParent->r_child = nullptr;
+			}
+			else if (replacement->child == -1)
+			{
+				// it is a root node
+				// do nothing and change the values directly
+			}
+			else // never valid
+			{
+				//std::cout << "Invalid Child Value, lie 1085" << endl;
+			}
+			//<-------------------- replacement node is removed
+		}
+
+		// remove the old node and replaced it
+		nodeToBeRemoved->value = tempReplacementNode->value;
+
+		// check if the removed node had other child or not
+		// if removed node has left child, update the new parent value in the child
+		if (nodeToBeRemoved->l_child != nullptr)
+		{
+			nodeToBeRemoved->l_child->parent = nodeToBeRemoved;
+		}
+
+		// if removed node has right child, update the new parent value in the child
+		if (nodeToBeRemoved->r_child != nullptr)
+		{
+			nodeToBeRemoved->r_child->parent = nodeToBeRemoved;
+		}
+	}
+	return replacementParent;
+}

@@ -1,0 +1,2117 @@
+// Homework7_AmritbaniSondhi.cpp : Defines the entry point for the console application.
+//CSE674 HW7
+//Due : Tuesday 12 / 5 at 11 : 59
+
+#include "stdafx.h"
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+class node
+{
+
+	//for simplicity, we again assume all numbers are distinct
+public:
+	int num_values;
+	vector<int> value;		//it can contain 1 ... 3 values
+	node* parent;
+	vector<node*> child;	//child[i] ( i = 0 ... 3) is a pointer to child node i
+	int child_state;		//a node can have up to 4 child nodes: child 0, 1, 2, 3.  child_state i (0 ... 3) means this node is child i of its parent
+	int is_leaf;			//1 if this is a leaf node; otherwise 0
+
+	node()
+	{
+		num_values = 0;
+		is_leaf = 1;
+		child.assign(4, nullptr);
+		parent = nullptr;
+		value.assign(3, -999);
+	}
+
+	void add_value(int k);		//add value to a node of less than 3 value
+	void remove_value(int k);	//remove value from a node of more than 1 value
+};
+
+
+class two34_tree
+{
+public:
+	node* root;
+
+	two34_tree()
+	{
+		root = nullptr;
+	}
+
+	void add(int k);					// Add Node: Main function
+	node* find(int k);					// find a node to add value k; invoked by add
+	void break_3_value_node(node * p);	// to be invoked by find
+	void remove(int k);					// Remove Node: Main function
+	node* find_1(int k);				// find a node to replace k, once k is removed; invoked by remove
+	void expand_1_value_node(node *p);	// to be invoked by find_1
+	void fusion(node *p);				// to be invoked by expand_1_value_node
+	void rotation(node *p);				// to be invoked by expand_1_value_node
+	void parentRotation(node *p);				// to be invoked by rotation() <---------------my function
+
+	void in_order_traversal(node * p);
+};
+
+
+void two34_tree::in_order_traversal(node * p)
+{
+	cout << endl;
+	node * p1 = p;
+	if (p1 == nullptr) return;
+	int i;
+	for (i = 0; i < p1->num_values; i++) {
+		in_order_traversal(p1->child[i]);
+		cout << "  " << p1->value[i] << "  " << "child_state = " << p1->child_state;
+	}
+	in_order_traversal(p1->child[i]);
+}
+
+
+int main()
+{
+	//The following is just an example.
+	//Different test casess can be used during grading.
+
+	two34_tree t1;
+	t1.add(40);
+	t1.add(30);
+	t1.add(20);
+	t1.in_order_traversal(t1.root);
+	t1.add(100);
+	t1.add(120);
+	t1.in_order_traversal(t1.root);
+	t1.add(200);
+	t1.in_order_traversal(t1.root);
+	t1.add(400);
+	t1.in_order_traversal(t1.root);
+	t1.add(600);
+	t1.in_order_traversal(t1.root);
+	t1.remove(20);
+	t1.in_order_traversal(t1.root);
+	t1.remove(200);
+	t1.in_order_traversal(t1.root);
+	t1.remove(100);
+	t1.in_order_traversal(t1.root);
+	getchar();
+	getchar();
+	return 0;
+
+}
+
+// Add Node: Main function
+void two34_tree::add(int k)
+{
+	node* rootNode = root;
+	int valueToBeInserted = k;
+
+	// first root value
+	if (rootNode == nullptr)
+	{
+		root = new node();
+
+		// no need to find; will have to add for the very first node
+		root->add_value(valueToBeInserted);
+	}
+	// only root node, without child nodes; may or may not have a full node
+	else if (rootNode != nullptr && rootNode->is_leaf == 1)
+	{
+		// but check if the node is a full node
+		if (rootNode->num_values == 3)
+		{
+			// break the node and then call add_value
+			//break_3_value_node(root);
+
+			// find where to insert the new node
+			node* foundNodeToModifyNewValue = find(k);
+
+			// add Value to the new found node
+			foundNodeToModifyNewValue->add_value(k);
+		}
+		// no need to find;
+		else if (rootNode->num_values > 3)
+		{
+			//cout << "\n Your node : " << rootNode->value[0] << " is having more than 3 values Dumb!!" << endl;
+		}
+		else
+		{
+			// find where to insert the new node
+			//node* foundNodeToModifyNewValue = find(k);
+			// add Value to the new found node
+			rootNode->add_value(k);
+
+		}
+	}
+	// not a root node
+	else if (rootNode != nullptr && rootNode->is_leaf == 0)
+	{
+		// traverse from the root to the leaf node
+		// find where to insert the new node
+		node* foundNodeToModifyNewValue = find(k);
+
+		// add Value to the new found node
+		foundNodeToModifyNewValue->add_value(k);
+	}
+}
+
+//add value to a node of less than 3 value
+void node::add_value(int k)
+{
+	int valueToBeInserted = k;
+
+	// only used for the root node; so parent of root is nullptr
+	if (num_values == 0)
+	{
+		// node is null; add it as a first element
+		num_values = 1;
+		value[0] = valueToBeInserted;
+
+		parent = nullptr;
+		// child is null
+		child_state = -1; // it's a root node
+		is_leaf = 1;
+	}
+	// only 1 element is present
+	else if (num_values == 1)
+	{
+		// check if valueToBeAdded is less than or greater than the value[0]
+			// if valueToBeInserted < value[0] then add the new value before value[0]
+		if (value[0] != -999 && valueToBeInserted <= value[0])
+		{
+			value[1] = value[0];
+			value[0] = valueToBeInserted;
+		}
+		// else if valueToBeInserted > value[0] then add the new value after value[0]
+		else if (value[0] != -999 && valueToBeInserted > value[0])
+		{
+			value[1] = valueToBeInserted;
+		}
+		num_values = 2;
+	}
+	else if (num_values == 2)
+	{
+		// 2 element's are present
+
+		// check if valueToBeInserted should be on the left, center or right
+			// if valueToBeInserted < value[0] then add the new value before value[0]; ie. left
+		if (value[0] != -999 && value[1] != -999 && valueToBeInserted <= value[0])
+		{
+			// shift value[0] and value[1] to next
+			value[2] = value[1];
+			value[1] = value[0];
+			value[0] = valueToBeInserted;
+		}
+		// if valueToBeInserted > value[0] && valueToBeAdded < value[1] then 
+		// add the new value after value[0] and before value[1]; ie. center
+		else if (value[0] != -999 && value[1] != -999 && valueToBeInserted > value[0] && valueToBeInserted <= value[1])
+		{
+			// shift value[1] to next
+			value[2] = value[1];
+			value[1] = valueToBeInserted;
+		}
+		// if valueToBeAdded > value[1] then add the new value after value[1]; ie. right
+		else if (value[0] != -999 && value[1] != -999 && valueToBeInserted > value[1])
+		{
+			value[2] = valueToBeInserted;
+		}
+		num_values = 3;
+	}
+
+	else if (num_values == 3)
+	{
+		// to be handled in the addNode function itself
+		//cout << "\n Incorrect case num_values == 3 in add_value" << endl;
+	}
+}
+
+// find a node to add value k; invoked by add
+node * two34_tree::find(int k)
+{
+	node* foundNodeToModifyNewValue = nullptr;
+	int newValueToModify = k;
+
+	// Check if root node doesn't have childs
+	if (root->is_leaf == 1)
+	{
+		if (root->num_values == 3)
+		{
+			break_3_value_node(root);
+		}
+		else
+		{
+			// invalid case
+			//cout << "\n Error: Find() --> root node is null and it's num_values is not 3" << endl;
+		}
+	}
+
+	if (root->is_leaf == 0)
+	{
+		// traverse to left or right child; till a leaf node is reached
+		node* nodeToBeChecked = root;
+
+		while (nodeToBeChecked->is_leaf != 1)
+		{
+
+			if (nodeToBeChecked->num_values == 3)
+			{
+				break_3_value_node(nodeToBeChecked);
+			}
+
+			// check if current node has values 1 or 2 and if it is not a leaf node
+			if (nodeToBeChecked->num_values < 3 && nodeToBeChecked->num_values > 0 && nodeToBeChecked->is_leaf != 1)
+			{
+				if (nodeToBeChecked->num_values == 1)	// check only one value
+				{
+					int valueToBeCompared = nodeToBeChecked->value[0];
+
+					if (newValueToModify <= valueToBeCompared) // go to the left side
+					{
+						nodeToBeChecked = nodeToBeChecked->child[0];
+					}
+					else if (newValueToModify > valueToBeCompared) // go to the right side
+					{
+						nodeToBeChecked = nodeToBeChecked->child[1];
+					}
+				}
+				else if (nodeToBeChecked->num_values == 2) 	// check both the values
+				{
+					int valueA = nodeToBeChecked->value[0];
+					int valueB = nodeToBeChecked->value[1];
+					if (newValueToModify <= valueA) // go to the left side
+					{
+						nodeToBeChecked = nodeToBeChecked->child[0];
+					}
+					else if (newValueToModify > valueB) // go to the right side
+					{
+						nodeToBeChecked = nodeToBeChecked->child[2];
+					}
+					else if (newValueToModify > valueA && newValueToModify <= valueB)
+					{
+						nodeToBeChecked = nodeToBeChecked->child[1];
+					}
+				}
+			}
+
+			if (nodeToBeChecked->num_values == 3)
+			{
+				// first check which would be nodeToBeCheckedNext
+				int valueA = nodeToBeChecked->value[0];
+				int valueB = nodeToBeChecked->value[1];
+				int valueC = nodeToBeChecked->value[2];
+				node* nodeToBeCheckedNext = nullptr;
+				int childToMoveTo = 0;
+
+				// parent node is 1-Node
+				if (nodeToBeChecked->parent->num_values == 1)
+				{
+					int initialValParent = nodeToBeChecked->parent->value[0];
+
+					////////////////////////////////////////////////////////////////////
+					// nodeToBeChecked is a right node;  parent node is 1-Node
+					if (nodeToBeChecked->child_state == 1)
+					{
+						if (newValueToModify <= initialValParent)
+						{
+							childToMoveTo = 0;
+						}
+						else if (newValueToModify > initialValParent && newValueToModify <= valueB) // go to the left most side
+						{
+							childToMoveTo = 1;
+						}
+						else if (newValueToModify > valueB) // go to the right most side
+						{
+							childToMoveTo = 2;
+						}
+					}
+					////////////////////////////////////////////////////////
+					// nodeToBeChecked is a left node; parent node is 1-Node
+					else if (nodeToBeChecked->child_state == 0)
+					{
+						initialValParent = nodeToBeChecked->parent->value[0];
+
+						if (newValueToModify <= valueB)
+						{
+							childToMoveTo = 0;
+						}
+						else if (newValueToModify > valueB && newValueToModify <= initialValParent) // go to the left most side
+						{
+							childToMoveTo = 1;
+						}
+						else if (newValueToModify > initialValParent) // go to the right most side
+						{
+							childToMoveTo = 2;
+						}
+					}
+				}
+				// parent node is 2-Node
+				else if (nodeToBeChecked->parent->num_values == 2)
+				{
+
+					int initialValParentA = nodeToBeChecked->parent->value[0];
+					int initialValParentB = nodeToBeChecked->parent->value[1];
+
+					///////////////////////////////////////////////////////////////
+					// nodeToBeChecked is a right node; parent node is 2-Node
+					if (nodeToBeChecked->child_state == 2)
+					{
+						if (newValueToModify <= initialValParentA)
+						{
+							childToMoveTo = 0;
+						}
+						else if (newValueToModify > initialValParentA && newValueToModify <= initialValParentB)
+						{
+							childToMoveTo = 1;
+						}
+						else if (newValueToModify > initialValParentB && newValueToModify <= valueB) // go to the left most side
+						{
+							childToMoveTo = 2;
+						}
+						else if (newValueToModify > valueB) // go to the right most side
+						{
+							childToMoveTo = 3;
+						}
+					}
+					///////////////////////////////////////////////////////////////
+					// nodeToBeChecked is a left node; parent node is 2-Node
+					else if (nodeToBeChecked->child_state == 0)
+					{
+						if (newValueToModify <= valueB)
+						{
+							childToMoveTo = 0;
+						}
+						else if (newValueToModify > valueB && newValueToModify <= initialValParentA)
+						{
+							childToMoveTo = 1;
+						}
+						else if (newValueToModify > initialValParentA && newValueToModify <= initialValParentB) // go to the left most side
+						{
+							childToMoveTo = 2;
+						}
+						else if (newValueToModify > initialValParentB) // go to the right most side
+						{
+							childToMoveTo = 3;
+						}
+					}
+					/////////////////////////////////////////////////////////////////
+					// nodeToBeChecked is a center node; parent node is 2-Node
+					else if (nodeToBeChecked->child_state == 1)
+					{
+						if (newValueToModify <= initialValParentA)
+						{
+							childToMoveTo = 0;
+						}
+						else if (newValueToModify > initialValParentA && newValueToModify <= valueB)
+						{
+							childToMoveTo = 1;
+						}
+						else if (newValueToModify > valueB && newValueToModify <= initialValParentB) // go to the left most side
+						{
+							childToMoveTo = 2;
+						}
+						else if (newValueToModify > initialValParentB) // go to the right most side
+						{
+							childToMoveTo = 3;
+						}
+					}
+				}
+				break_3_value_node(nodeToBeChecked);
+				nodeToBeChecked = nodeToBeChecked->parent->child[childToMoveTo];
+			}
+			// after the leaf node is found
+			if (nodeToBeChecked->is_leaf == 1)
+			{
+				foundNodeToModifyNewValue = nodeToBeChecked;
+			}
+		}
+	}
+
+	return foundNodeToModifyNewValue;
+}
+
+// to be invoked by find
+void two34_tree::break_3_value_node(node* p)
+{
+	node* nodeToBeBroken = p;
+	node* newLeftChild = new node();
+	node* newRightChild = new node();
+
+	// check if the nodeToBeBroken has a parent or not
+	// if not (ie. it's a root node), just break it normally
+	if (nodeToBeBroken->parent == nullptr)
+	{
+		if (nodeToBeBroken->is_leaf == 0) // root with child
+		{
+			// save the new LeftChild and RightChild values
+			int rightChildValue = p->value[2];
+			int centerChildValue = p->value[1];
+			int leftChildValue = p->value[0];
+
+			node* leftOuterNode = nodeToBeBroken->child[0];
+			node* leftInnerNode = nodeToBeBroken->child[1];
+			node* rightInnerNode = nodeToBeBroken->child[2];
+			node* rightOuterNode = nodeToBeBroken->child[3];
+
+			// save the new Parent values
+			p->num_values = 1;			// will start from 1 element
+			p->value[0] = centerChildValue;	// save the Center value
+			p->value[1] = -999;			// reset it
+			p->value[2] = -999;			// reset it
+			// parent is already null from nodeToBeBroken;
+			// child state is already -1 from nodeToBeBroken;
+			p->is_leaf = 0;				// not a leaf anymore
+
+			// reset child values of nodeToBeBroken
+			p->child[0] = nullptr;
+			p->child[1] = nullptr;
+			p->child[2] = nullptr;
+			p->child[3] = nullptr;
+
+			// creating new child nodes of the new parent
+			// Left Child
+			newLeftChild->num_values = 1;
+			newLeftChild->value[0] = leftChildValue;		// old left value
+			newLeftChild->parent = p;
+			newLeftChild->child[0] = leftOuterNode;
+			newLeftChild->child[1] = leftInnerNode;
+			newLeftChild->child[0]->child_state = 0;
+			newLeftChild->child[1]->child_state = 1;
+			newLeftChild->child[0]->parent = newLeftChild;
+			newLeftChild->child[1]->parent = newLeftChild;
+			newLeftChild->child_state = 0;					// as it is a left child
+			newLeftChild->is_leaf = 0;
+
+			// Right Child
+			newRightChild->num_values = 1;
+			newRightChild->value[0] = rightChildValue;		// old right value
+			newRightChild->parent = p;
+			newRightChild->child[0] = rightInnerNode;
+			newRightChild->child[1] = rightOuterNode;
+			newRightChild->child[0]->child_state = 0;
+			newRightChild->child[1]->child_state = 1;
+			newRightChild->child[0]->parent = newRightChild;
+			newRightChild->child[1]->parent = newRightChild;
+			newRightChild->child_state = 1;					// as it is a right child
+			newRightChild->is_leaf = 0;
+
+			// connecting child nodes with the parent
+			p->child[0] = newLeftChild;
+			p->child[1] = newRightChild;
+
+			// connecting parent with the child nodes
+			p->child[0]->parent = p;
+			p->child[1]->parent = p;
+		}
+		else // root with no child
+		{
+			// save the new LeftChild and RightChild values
+			int rightChildValue = p->value[2];
+			int centerChildValue = p->value[1];
+			int leftChildValue = p->value[0];
+
+			// save the new Parent values
+			p->num_values = 1;			// will start from 1 element
+			p->value[0] = centerChildValue;	// save the Center value
+			p->value[1] = -999;			// reset it
+			p->value[2] = -999;			// reset it
+			// parent is already null from nodeToBeBroken;
+			// child state is already -1 from nodeToBeBroken;
+			p->is_leaf = 0;				// not a leaf anymore
+
+			// creating new child nodes of the new parent
+			// Left Child
+			newLeftChild->num_values = 1;
+			newLeftChild->value[0] = leftChildValue;		// old left value
+			newLeftChild->parent = p;
+			// no Childs of Child
+			newLeftChild->child_state = 0;				// as it is a left child
+			newLeftChild->is_leaf = 1;
+
+			// Right Child
+			newRightChild->num_values = 1;
+			newRightChild->value[0] = rightChildValue;		// old right value
+			newRightChild->parent = p;
+			// no Childs of Child
+			newRightChild->child_state = 1;				// as it is a right child
+			newRightChild->is_leaf = 1;
+
+			// connecting child nodes with the parent
+			p->child[0] = newLeftChild;
+			p->child[1] = newRightChild;
+
+			// connecting parent with the child nodes
+			p->child[0]->parent = p;
+			p->child[1]->parent = p;
+		}
+	}
+	// check if the nodeToBeBroken has a parent or not
+	// if yes, then send the center node to the parent
+	else if (nodeToBeBroken->parent != nullptr)
+	{
+		// get parent node of nodeToBeBroken
+		node* nodeToBeBrokenParent = nodeToBeBroken->parent;
+		node* newLeftChild = new node();
+		node* newRightChild = new node();
+
+		// save the new LeftChild and RightChild values
+		int rightChildValue = p->value[2];
+		int centerChildValue = p->value[1];
+		int leftChildValue = p->value[0];
+
+		node* miniChild_0 = nullptr;
+		node* miniChild_1 = nullptr;
+		node* miniChild_2 = nullptr;
+		node* miniChild_3 = nullptr;
+		bool hasMiniChilds = false;
+
+		if (nodeToBeBroken->is_leaf == 0)
+		{
+			hasMiniChilds = true;
+
+			// save child values
+			miniChild_0 = nodeToBeBroken->child[0];
+			miniChild_1 = nodeToBeBroken->child[1];
+			miniChild_2 = nodeToBeBroken->child[2];
+			miniChild_3 = nodeToBeBroken->child[3];
+
+			miniChild_2->child_state = 0;
+			miniChild_3->child_state = 1;
+		}
+
+		///////////////////////////////////////////////////////////////////////////////
+		// check the value[place] where the center node's value will go in the parent
+		// Case 1: parent: 1-Node 
+		if (nodeToBeBrokenParent->num_values == 1)
+		{
+			//node* newCenterChild = new node();
+			newLeftChild->value[0] = leftChildValue;
+			newRightChild->value[0] = rightChildValue;
+
+			// for childs of the parent
+			if (nodeToBeBroken->child_state == 1)		// parent: 1-Node and nodeToBeBroken: right child
+			{
+				// Update nodeToBeBrokenParent
+				p->parent->num_values = 2;
+				p->parent->value[1] = centerChildValue;	// center node
+				// no need to change nodeToBeBrokenParent->parent
+
+				// no need to change nodeToBeBrokenParent->child_state
+				p->parent->is_leaf = 0;	// no longer a leaf
+
+				// update newLeftChild and newRightChild's details
+				newLeftChild->num_values = 1; // LeftChild
+				newRightChild->num_values = 1; // rightChild
+				newLeftChild->value[0] = leftChildValue; // LeftChild
+				newRightChild->value[0] = rightChildValue; // rightChild
+
+				newLeftChild->child_state = 1; // leftChild
+				newRightChild->child_state = 2; // rightChild
+
+				//p->parent->child[0]->is_leaf = 1; // we can't predict what this node could be
+				newLeftChild->is_leaf = 1;
+				newRightChild->is_leaf = 1;
+
+				if (nodeToBeBroken->is_leaf == 0)
+				{
+					newLeftChild->child[0] = miniChild_0;
+					newLeftChild->child[1] = miniChild_1;
+
+					newRightChild->child[0] = miniChild_2;
+					newRightChild->child[1] = miniChild_3;
+
+					newLeftChild->child[0]->parent = newLeftChild;
+					newLeftChild->child[1]->parent = newLeftChild;
+					newRightChild->child[0]->parent = newRightChild;
+					newRightChild->child[1]->parent = newRightChild;
+
+					newLeftChild->is_leaf = 0;
+					newRightChild->is_leaf = 0;
+				}
+
+				if (nodeToBeBrokenParent->child[0] != nullptr && nodeToBeBrokenParent->child[1] != nullptr)	//always true
+				{
+					// connect parent with childs
+					// child[0] is intact with the original left node
+					p->parent->child[1] = newLeftChild; // new left node
+					p->parent->child[2] = newRightChild; // new right node
+				}
+				// connect childs with parent
+				p->parent->child[0]->parent = p->parent;
+				p->parent->child[1]->parent = p->parent;
+				p->parent->child[2]->parent = p->parent;
+
+			}
+			else if (nodeToBeBroken->child_state == 0)	// parent: 1-Node and nodeToBeBroken: left child
+			{
+				// Update nodeToBeBrokenParent
+				p->parent->num_values = 2;
+				p->parent->value[1] = p->parent->value[0];	// transfer parent[0] to parent[1]
+				p->parent->value[0] = centerChildValue;
+				// no need to change nodeToBeBrokenParent->parent
+
+				// no need to change nodeToBeBrokenParent->child_state
+				p->parent->is_leaf = 0;	// no longer a leaf
+
+				// update newCenterChild and newRightChild's details
+				newLeftChild->num_values = 1; // leftChild 
+				newRightChild->num_values = 1; // rightChild
+				newLeftChild->value[0] = leftChildValue;	// leftChild
+				newRightChild->value[0] = rightChildValue;	// rightChild
+
+				// ductape fix
+				/*
+				p->parent->child[2]->child_state = 2; // rightChild
+				p->parent->child[0]->child_state = 0; // leftChild
+				p->parent->child[1]->child_state = 1; // centerChild
+				*/
+				p->parent->child[1]->child_state = 2; // rightChild
+				newLeftChild->child_state = 0; // leftChild
+				newRightChild->child_state = 1; // centerChild
+
+				p->parent->child[0]->is_leaf = 1;
+				p->parent->child[1]->is_leaf = 1;
+				//p->parent->child[2]->is_leaf = 1; // we can't predict what this node could be
+
+				if (nodeToBeBroken->is_leaf == 0)
+				{
+					newLeftChild->child[0] = miniChild_0;
+					newLeftChild->child[1] = miniChild_1;
+
+					newRightChild->child[0] = miniChild_2;
+					newRightChild->child[1] = miniChild_3;
+
+					newLeftChild->child[0]->parent = newLeftChild;
+					newLeftChild->child[1]->parent = newLeftChild;
+					newRightChild->child[0]->parent = newRightChild;
+					newRightChild->child[1]->parent = newRightChild;
+
+					newLeftChild->is_leaf = 0;
+					newRightChild->is_leaf = 0;
+				}
+
+				if (nodeToBeBrokenParent->child[0] != nullptr && nodeToBeBrokenParent->child[1] != nullptr)	//always true
+				{
+					// connect parent with childs
+					// child[2] is intact with the original left node; but child[2] was child[1] before
+					p->parent->child[2] = p->parent->child[1];		// transfer child[1] to child[2]
+					p->parent->child[1] = newRightChild;			// new center node
+					p->parent->child[0] = newLeftChild;				// new left node
+				}
+				// connect childs with parent
+				p->parent->child[0]->parent = p->parent;
+				p->parent->child[1]->parent = p->parent;
+				p->parent->child[2]->parent = p->parent;
+			}
+			else
+			{
+				// not a valid condition
+				//cout << "\n Some condition is missing in break_3_value_node(); oldNodeToBeBrokenParent->num_values == 1" << endl;
+			}
+		}
+		////////////////////////////////////////////////////
+		// Case 2: parent: 2-Node 
+		else if (nodeToBeBrokenParent->num_values == 2)
+		{
+			//node* newCenterChild = new node();
+			newLeftChild->value[0] = leftChildValue;
+			newRightChild->value[0] = rightChildValue;
+
+			if (nodeToBeBroken->child_state == 2)			// parent: 2-Node and nodeToBeBroken: right child
+			{
+				// Update nodeToBeBrokenParent
+				p->parent->num_values = 3;
+				p->parent->value[2] = centerChildValue;		// center node
+				// no need to change nodeToBeBrokenParent->parent
+
+				// no need to change nodeToBeBrokenParent->child_state
+				p->parent->is_leaf = 0;		// no longer a leaf
+
+				// update newLeftChild and newRightChild's details
+				newLeftChild->num_values = 1;				// LeftChild
+				newRightChild->num_values = 1;				// rightChild
+				newLeftChild->value[0] = leftChildValue;	// LeftChild
+				newRightChild->value[0] = rightChildValue;	// rightChild
+
+				newLeftChild->child_state = 2;	// leftChild
+				newRightChild->child_state = 3; // rightChild
+
+				//p->parent->child[0]->is_leaf = 1; // we can't predict what this node could be
+				newLeftChild->is_leaf = 1;
+				newRightChild->is_leaf = 1;
+
+				if (nodeToBeBroken->is_leaf == 0)
+				{
+					newLeftChild->child[0] = miniChild_0;
+					newLeftChild->child[1] = miniChild_1;
+
+					newRightChild->child[0] = miniChild_2;
+					newRightChild->child[1] = miniChild_3;
+
+					newLeftChild->child[0]->parent = newLeftChild;
+					newLeftChild->child[1]->parent = newLeftChild;
+					newRightChild->child[0]->parent = newRightChild;
+					newRightChild->child[1]->parent = newRightChild;
+
+					newLeftChild->is_leaf = 0;
+					newRightChild->is_leaf = 0;
+				}
+
+				if (nodeToBeBrokenParent->child[0] != nullptr && nodeToBeBrokenParent->child[1] != nullptr && nodeToBeBrokenParent->child[2] != nullptr)	//always true
+				{
+					// connect parent with childs
+					// child[0] and child[1] are intact with the outer left node and inner left node
+					p->parent->child[2] = newLeftChild; // new left node
+					p->parent->child[3] = newRightChild; // new right node
+				}
+				// connect childs with parent
+				p->parent->child[0]->parent = p->parent;
+				p->parent->child[1]->parent = p->parent;
+				p->parent->child[2]->parent = p->parent;
+				p->parent->child[3]->parent = p->parent;
+			}
+			else if (nodeToBeBroken->child_state == 1)		// parent: 2-Node and nodeToBeBroken: center child
+			{
+				// Update nodeToBeBrokenParent
+				p->parent->num_values = 3;
+				p->parent->value[2] = p->parent->value[1];	// transfer parent[1] to parent[2]
+				p->parent->value[1] = centerChildValue;
+				//p->parent->value[0] = p->parent->value[0];
+				// no need to change nodeToBeBrokenParent->parent
+
+				// no need to change nodeToBeBrokenParent->child_state
+				p->parent->is_leaf = 0;	// no longer a leaf
+
+				// update newCenterChild and newRightChild's details
+				newLeftChild->num_values = 1; // leftChild 
+				newRightChild->num_values = 1; // rightChild
+				newLeftChild->value[0] = leftChildValue;	// leftChild
+				newRightChild->value[0] = rightChildValue;	// rightChild
+
+				// ductape
+				/*
+				p->parent->child[3]->child_state = 3; // outerRightChild
+				p->parent->child[2]->child_state = 2; // rightChild
+				p->parent->child[0]->child_state = 0; // leftChild
+				p->parent->child[1]->child_state = 1; // centerChild
+				*/
+				p->parent->child[2]->child_state = 3; // outerRightChild
+				newRightChild->child_state = 2; // rightChild
+				p->parent->child[0]->child_state = 0; // leftChild
+				newLeftChild->child_state = 1; // centerChild
+
+				p->parent->child[0]->is_leaf = 1;
+				p->parent->child[1]->is_leaf = 1;
+				//p->parent->child[2]->is_leaf = 1; // we can't predict what this node could be
+				//p->parent->child[3]->is_leaf = 1; // we can't predict what this node could be
+
+				if (nodeToBeBroken->is_leaf == 0)
+				{
+					newLeftChild->child[0] = miniChild_0;
+					newLeftChild->child[1] = miniChild_1;
+
+					newRightChild->child[0] = miniChild_2;
+					newRightChild->child[1] = miniChild_3;
+
+					newLeftChild->child[0]->parent = newLeftChild;
+					newLeftChild->child[1]->parent = newLeftChild;
+					newRightChild->child[0]->parent = newRightChild;
+					newRightChild->child[1]->parent = newRightChild;
+
+					newLeftChild->is_leaf = 0;
+					newRightChild->is_leaf = 0;
+				}
+
+				if (nodeToBeBrokenParent->child[0] != nullptr && nodeToBeBrokenParent->child[1] != nullptr && nodeToBeBrokenParent->child[2] != nullptr)	//always true
+				{
+					// connect parent with childs
+					// child[0] is intact with the original left node; but child[3] was child[2] before
+					p->parent->child[3] = p->parent->child[2];	// transfer child[2] to child[3]
+					p->parent->child[2] = newRightChild; // new center node
+					p->parent->child[1] = newLeftChild; // new left node
+				}
+
+				// connect childs with parent
+				p->parent->child[0]->parent = p->parent;
+				p->parent->child[1]->parent = p->parent;
+				p->parent->child[2]->parent = p->parent;
+				p->parent->child[3]->parent = p->parent;
+			}
+			else if (nodeToBeBroken->child_state == 0)		// parent: 2-Node and nodeToBeBroken: left child
+			{
+				// Update nodeToBeBrokenParent
+				p->parent->num_values = 3;
+				p->parent->value[2] = p->parent->value[1];	// transfer parent[1] to parent[2]
+				p->parent->value[1] = p->parent->value[0];	// transfer parent[0] to parent[1]
+				p->parent->value[0] = centerChildValue;
+				// no need to change nodeToBeBrokenParent->parent
+
+				// no need to change nodeToBeBrokenParent->child_state
+				p->parent->is_leaf = 0;	// no longer a leaf
+
+				// update newCenterChild and newRightChild's details
+				newLeftChild->num_values = 1; // leftChild 
+				newRightChild->num_values = 1; // rightChild
+				newLeftChild->value[0] = leftChildValue;	// leftChild
+				newRightChild->value[0] = rightChildValue;	// rightChild
+
+				/* ductape fix
+				p->parent->child[3]->child_state = 3; // outerRightChild
+				p->parent->child[2]->child_state = 2; // rightChild
+				p->parent->child[0]->child_state = 0; // leftChild
+				p->parent->child[1]->child_state = 1; // centerChild
+				*/
+				p->parent->child[2]->child_state = 3; // outerRightChild
+				p->parent->child[1]->child_state = 2; // rightChild
+				newLeftChild->child_state = 0; // leftChild
+				newRightChild->child_state = 1; // centerChild
+
+				p->parent->child[0]->is_leaf = 1;
+				p->parent->child[1]->is_leaf = 1;
+				//p->parent->child[2]->is_leaf = 1; // we can't predict what this node could be
+				//p->parent->child[3]->is_leaf = 1; // we can't predict what this node could be
+
+				if (nodeToBeBroken->is_leaf == 0)
+				{
+					newLeftChild->child[0] = miniChild_0;
+					newLeftChild->child[1] = miniChild_1;
+
+					newRightChild->child[0] = miniChild_2;
+					newRightChild->child[1] = miniChild_3;
+
+					newLeftChild->child[0]->parent = newLeftChild;
+					newLeftChild->child[1]->parent = newLeftChild;
+					newRightChild->child[0]->parent = newRightChild;
+					newRightChild->child[1]->parent = newRightChild;
+
+					newLeftChild->is_leaf = 0;
+					newRightChild->is_leaf = 0;
+				}
+
+				if (nodeToBeBrokenParent->child[0] != nullptr && nodeToBeBrokenParent->child[1] != nullptr)	//always true
+				{
+					// connect parent with childs
+					// child[2] is intact with the original left node; but child[2] was child[1] before
+					p->parent->child[3] = p->parent->child[2];	// transfer child[2] to child[3]
+					p->parent->child[2] = p->parent->child[1];	// transfer child[1] to child[2]
+					p->parent->child[1] = newRightChild; // new center node
+					p->parent->child[0] = newLeftChild; // new left node
+				}
+				// connect childs with parent
+				p->parent->child[0]->parent = p->parent;
+				p->parent->child[1]->parent = p->parent;
+				p->parent->child[2]->parent = p->parent;
+				p->parent->child[3]->parent = p->parent;
+			}
+			else
+			{
+				// not a valid condition
+				//cout << "\n Some condition is missing in break_3_value_node(); oldNodeToBeBrokenParent->num_values == 2" << endl;
+			}
+		}
+		/////////////////////////////////////////
+		// Case 3: parent: 3-Node or greater
+		else if (nodeToBeBrokenParent->num_values > 2)		// parent: 2-Node and nodeToBeBroken: left child
+		{
+			// this will never happen; if it does means the parent node has 3 elements
+			// which is not possible in Top-Down Approach
+			//cout << "\n nodeToBeBrokenParent->num_values == 3 or greater in break_3_value_node()" << endl;
+		}
+		else
+		{
+			// this will never happen; as all the conditions are covered above
+			//cout << "\n Some condition is missing in break_3_value_node()" << endl;
+		}
+	}
+}
+
+// Remove Node: Main function
+void two34_tree::remove(int k)
+{
+	int valueToBeRemoved = k;
+	node* nodeToBeRemoved = nullptr;
+
+	// find the node
+	nodeToBeRemoved = find_1(valueToBeRemoved);
+
+	if (nodeToBeRemoved != nullptr)	// value was found in the tree
+	{
+		// if You enter the first condition then you'd have to delete the actualNodeToBeDeleted after everything is over
+		// so save the following values, so you can delete the actualNodeToBeDeleted later
+		int actualValueToBeDeleted = -1;
+		int savedReplacementValue = -999;
+		bool toBeRemovedInTheEnd = false;
+
+		// nodeToBeRemoved is not a leaf node
+		if (nodeToBeRemoved->is_leaf == 0)
+		{
+			toBeRemovedInTheEnd = true;
+			actualValueToBeDeleted = valueToBeRemoved;
+
+			//// adjust something so it becomes a leaf and some conditions afterward can handle it
+
+			// at the end of this function change the nodeToBeDeleted value to the replacementValue
+		}
+
+		if (nodeToBeRemoved->is_leaf == 1 && nodeToBeRemoved->num_values == 1)	// nodeToBeRemoved has only 1 value
+		{
+			///////// already handled in find_1()
+			//cout << "\n Error: if (nodeToBeRemoved->is_leaf == 1 && nodeToBeRemoved->num_values == 1)" << endl;
+		}
+		else if (nodeToBeRemoved->is_leaf == 0)
+		{
+			// the case is handled up already, so this is an invalid case now
+			//cout << "\n Node To Be Removed is not a leaf node" << endl;
+		}
+
+		// can directly remove if there are more than 1 values in the node
+		if (nodeToBeRemoved->is_leaf == 1 && nodeToBeRemoved->num_values > 1)	// nodeToBeRemoved has more than 1 value
+		{
+			nodeToBeRemoved->remove_value(k);
+		}
+
+
+		//////////////////////////////////////////////////////////////////////////////////////////////////
+		// taking care of the very first condition of this loop; ie. replacing the actualNodeToBeDeleted
+		if (toBeRemovedInTheEnd == true)
+		{
+			// find the node again
+			node* nodeToReplace = find_1(actualValueToBeDeleted);
+
+			////////////////////////////////////////////////////////////////
+			// replace the value
+			int searchValue = actualValueToBeDeleted;
+			int count_num_values = nodeToReplace->num_values;
+			int valuePosition = -1;
+
+			// search the position of the value
+			for (int i = 0; i < count_num_values; i++)
+			{
+				if (searchValue == nodeToReplace->value[i])
+				{
+					valuePosition = i;
+					break;
+				}
+			}
+			count_num_values = nodeToReplace->num_values;
+			if (count_num_values == 1)	// 1-Node
+			{
+				if (valuePosition == 0)			// Replace Value
+				{
+					nodeToReplace->value[0] = savedReplacementValue;
+				}
+			}
+			else if (count_num_values == 2)	// 2-Node
+			{
+				if (valuePosition == 0)			// Replace LeftValue
+				{
+					nodeToReplace->value[0] = savedReplacementValue;
+				}
+				else if (valuePosition == 1)	// Replace RightValue
+				{
+					nodeToReplace->value[1] = savedReplacementValue;
+				}
+			}
+			else if (count_num_values == 3)	// 3-Node
+			{
+				if (valuePosition == 0)			// Remove LeftValue
+				{
+					nodeToReplace->value[0] = savedReplacementValue;
+				}
+				else if (valuePosition == 1)	// Remove CenterValue
+				{
+					nodeToReplace->value[1] = savedReplacementValue;
+				}
+				else if (valuePosition == 2)	// Remove RightValue
+				{
+					nodeToReplace->value[2] = savedReplacementValue;
+				}
+			}
+
+		}
+	}
+}
+
+//remove value from a node of more than 1 value
+void node::remove_value(int k)
+{
+	int searchValue = k;
+	int count_num_values = num_values;
+	int valuePosition = -1;
+
+	// check the position of the value
+	for (int i = 0; i < count_num_values; i++)
+	{
+		if (searchValue == value[i])
+		{
+			valuePosition = i;
+			break;
+		}
+	}
+
+	count_num_values = num_values;
+	if (count_num_values == 2)	// 2-Node
+	{
+		if (valuePosition == 0)	// Remove LeftValue
+		{
+			value[0] = value[1];
+			value[1] = -999;
+		}
+		else if (valuePosition == 1) // Remove RightValue
+		{
+			value[1] = -999;
+		}
+		num_values = 1;
+	}
+	else if (count_num_values == 3)	// 3-Node
+	{
+		if (valuePosition == 0)	// Remove LeftValue
+		{
+			value[0] = value[1];
+			value[1] = value[2];
+			value[2] = -999;
+		}
+		else if (valuePosition == 1) // Remove CenterValue
+		{
+			value[1] = value[2];
+			value[2] = -999;
+		}
+		else if (valuePosition == 2) // Remove RightValue
+		{
+			value[2] = -999;
+		}
+		num_values = 2;
+	}
+}
+
+// find a node to replace k, once k is removed; invoked by remove
+node* two34_tree::find_1(int k)
+{
+	node* nodeToBeRemoved = nullptr;
+	int searchValue = k;
+	bool found = false;
+	node* nodeToBeChecked = root;
+	node* prevNodeChecked = nullptr;
+
+	// traverse the 2-3-4 tree to get the node, till you find it, or you reach the end of the tree
+	while (found == false && nodeToBeChecked != nullptr)
+	{
+		int count_num_values = nodeToBeChecked->num_values;
+
+		// Check for all the values for the node
+		for (int i = 0; i < count_num_values; i++)
+		{
+			if (searchValue == nodeToBeChecked->value[i])
+			{
+				found = true;
+				nodeToBeRemoved = nodeToBeChecked;
+				break;
+			}
+			else if (prevNodeChecked == nodeToBeChecked)
+			{
+				//cout << "\n Node value not present in the tree" << endl;
+				nodeToBeRemoved = nullptr;
+				break;
+			}
+		}
+
+		if (found == false)
+		{
+			// traverse to the next node
+			if (nodeToBeChecked->num_values == 1)			// 2 ways: leftChild and rightChild
+			{
+				prevNodeChecked = nodeToBeChecked;
+
+				if (searchValue < nodeToBeChecked->value[0])
+					nodeToBeChecked = nodeToBeChecked->child[0];	// traverse left
+				else if (searchValue > nodeToBeChecked->value[0])
+					nodeToBeChecked = nodeToBeChecked->child[1];	// traverse right
+			}
+			else if (nodeToBeChecked->num_values == 2)		// 3 ways: leftChild, centerChild and rightChild
+			{
+				prevNodeChecked = nodeToBeChecked;
+
+				if (searchValue < nodeToBeChecked->value[0])		// element 0
+					nodeToBeChecked = nodeToBeChecked->child[0];	// traverse left
+				else if (searchValue > nodeToBeChecked->value[0] && searchValue < nodeToBeChecked->value[1])	// element 0 and 1
+					nodeToBeChecked = nodeToBeChecked->child[1];	// traverse center
+				else if (searchValue > nodeToBeChecked->value[1])
+					nodeToBeChecked = nodeToBeChecked->child[2];	// traverse right
+			}
+			else if (nodeToBeChecked->num_values == 3)		// 4 ways: leftOuterChild, leftInnerChild, rightInnerChild and rightOuterChild
+			{
+				prevNodeChecked = nodeToBeChecked;
+
+				if (searchValue < nodeToBeChecked->value[0])		// element 0
+					nodeToBeChecked = nodeToBeChecked->child[0];	// traverse outerLeft
+				else if (searchValue > nodeToBeChecked->value[0] && searchValue < nodeToBeChecked->value[1])	// element 0 and 1
+					nodeToBeChecked = nodeToBeChecked->child[1];	// traverse innerLeft
+				else if (searchValue > nodeToBeChecked->value[1] && searchValue < nodeToBeChecked->value[2])	// element 1 and 2
+					nodeToBeChecked = nodeToBeChecked->child[2];	// traverse innerRight
+				else if (searchValue > nodeToBeChecked->value[2])	// element 2
+					nodeToBeChecked = nodeToBeChecked->child[3];	// traverse outerRight
+			}
+		}
+	}
+
+	if (nodeToBeRemoved->num_values == 1)
+	{
+		bool fuse = false;
+		node* fuseNodeToBeDeleted = nullptr;
+		node* fuseParent = nodeToBeRemoved->parent;
+		node* fuseLeftSibling = nullptr;
+		node* fuseRightSibling = nullptr;
+
+		///////////////////////////////////////////////////////////
+		// save sibling values: leftSibling, rightSibling
+		if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 1)
+		{
+			// check if nodeToBeRemoved is a rightChild?
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				fuseLeftSibling = nodeToBeRemoved->parent->child[0];
+				fuseRightSibling = nullptr;	// not present
+			}
+			// check if nodeToBeRemoved is a leftChild?
+			else if (nodeToBeRemoved->child_state == 0)
+			{
+				fuseLeftSibling = nullptr;	// not present
+				fuseRightSibling = nodeToBeRemoved->parent->child[1];
+			}
+			else
+			{
+				//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+			}
+		}
+		else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 2)
+		{
+			// check if nodeToBeRemoved is a rightChild?
+			if (nodeToBeRemoved->child_state == 2)
+			{
+				fuseLeftSibling = nodeToBeRemoved->parent->child[0];
+				fuseRightSibling = nullptr;	// not present
+			}
+			// check if nodeToBeRemoved is a leftChild?
+			else if (nodeToBeRemoved->child_state == 0)
+			{
+				fuseLeftSibling = nullptr;	// not present
+				fuseRightSibling = nodeToBeRemoved->parent->child[1];
+			}
+			// check if nodeToBeRemoved is a centerChild?
+			else if (nodeToBeRemoved->child_state == 1)
+			{
+				// both are present
+				fuseLeftSibling = nodeToBeRemoved->parent->child[0];
+				fuseRightSibling = nodeToBeRemoved->parent->child[2];
+			}
+		}
+		else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 3)
+		{
+			// check if nodeToBeRemoved is a rightChild?
+			if (nodeToBeRemoved->child_state == 3)
+			{
+				fuseLeftSibling = nodeToBeRemoved->parent->child[2];
+				fuseRightSibling = nullptr;	// not present
+			}
+			// check if nodeToBeRemoved is a leftChild?
+			else if (nodeToBeRemoved->child_state == 0)
+			{
+				fuseLeftSibling = nullptr;	// not present
+				fuseRightSibling = nodeToBeRemoved->parent->child[1];
+			}
+			// check if nodeToBeRemoved is a RightInnerChild?
+			else if (nodeToBeRemoved->child_state == 2)
+			{
+				// both are present
+				fuseLeftSibling = nodeToBeRemoved->parent->child[1];
+				fuseRightSibling = nodeToBeRemoved->parent->child[3];
+			}
+			// check if nodeToBeRemoved is a LeftInnerChild?
+			else if (nodeToBeRemoved->child_state == 1)
+			{
+				// both are present
+				fuseLeftSibling = nodeToBeRemoved->parent->child[0];
+				fuseRightSibling = nodeToBeRemoved->parent->child[2];
+			}
+		}
+
+		//// Borrow from Parent
+		//// Fusion of Siblings
+		if (nodeToBeRemoved->parent != nullptr && fuseParent->num_values > 1)
+		{
+			// left is present
+			if ((fuseLeftSibling != nullptr && fuseRightSibling == nullptr && fuseLeftSibling->num_values == 1)
+			// right is present
+			|| (fuseLeftSibling == nullptr && fuseRightSibling != nullptr && fuseRightSibling->num_values == 1)
+			// both are present
+			|| (fuseLeftSibling != nullptr && fuseRightSibling != nullptr && fuseRightSibling->num_values == 1 && fuseLeftSibling->num_values == 1))
+			{
+				fuse = true;
+				//fuseNodeToBeDeleted = new node();
+				fuseNodeToBeDeleted = nodeToBeRemoved;
+			}
+		}
+
+		expand_1_value_node(nodeToBeRemoved);
+		//<---------------------- now the nodeToBeRemoved has more than one element
+
+		if (fuse == true)
+		{
+			node* newFuseNodeToBeDeleted = find_1(k);
+			newFuseNodeToBeDeleted->remove_value(k);
+		}
+	}
+
+	return nodeToBeRemoved;
+}
+
+// to be invoked by find_1
+void two34_tree::expand_1_value_node(node * p)
+{
+	node* nodeToBeRemoved = p;
+	node* leftSibling = nullptr;
+	node* rightSibling = nullptr;
+
+	bool isRootWithOneElement = false;
+
+	///////////////////////////////////////////////////////////
+	// save sibling values: leftSibling, rightSibling
+	if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 1)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 1)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+	}
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 2)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 2)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		// check if nodeToBeRemoved is a centerChild?
+		else if (nodeToBeRemoved->child_state == 1)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nodeToBeRemoved->parent->child[2];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+	}
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 3)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 3)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[2];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		// check if nodeToBeRemoved is a RightInnerChild?
+		else if (nodeToBeRemoved->child_state == 2)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[1];
+			rightSibling = nodeToBeRemoved->parent->child[3];
+		}
+		// check if nodeToBeRemoved is a LeftInnerChild?
+		else if (nodeToBeRemoved->child_state == 1)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nodeToBeRemoved->parent->child[2];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+
+	}
+	else if (nodeToBeRemoved->parent == nullptr)
+	{
+		isRootWithOneElement = true;
+	}
+
+	// check who will give the replacement node, so that nodeToBeRemoved has 2 elements
+	// and then remove, will be handled in the next if loop, ie. already there
+
+	/////////////////////////////////////////////////////////////////////////////////
+	// check if left sibling can lend an element; nodeToBeRemoved->is_leaf == 1
+	if (leftSibling != nullptr && leftSibling->num_values > 1)
+	{
+		// Borrow from Left Sibling
+		// Rotate Right
+		rotation(nodeToBeRemoved);
+	}
+	/////////////////////////////////////////////////////////////////////////////////
+	// check if right sibling can lend an element; nodeToBeRemoved->is_leaf == 1
+	else if (rightSibling != nullptr && rightSibling->num_values > 1)
+	{
+		// Borrow from Right Sibling
+		// Rotate Left
+		rotation(nodeToBeRemoved);
+	}
+	///////////////////////////////////////////////////////////////////////////////////////////
+	// check if parent can lend an element; nodeToBeRemoved->is_leaf == 1
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values > 1)
+	{
+		// Borrow from Parent
+		// Fusion of Siblings
+		fusion(nodeToBeRemoved);
+	}
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// check if parent cannot lend an element; nodeToBeRemoved->is_leaf == 1
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 1)
+	{
+		// Borrow from GrandParent
+		// Fusion of 2-Parents
+	}
+	//////////////////////////////////////////////////////////////////////////////////////////
+	// node is a root node with 1 Element, with no children; nodeToBeRemoved->is_leaf == 1
+	else if (nodeToBeRemoved->parent == nullptr && nodeToBeRemoved->is_leaf == 1)
+	{
+		root = nullptr;
+	}
+	////////////////////////////////////////////////////////////////////////////////////
+	// won't reach here
+	else
+	{
+		//cout << "\n Error: Some condition is missing in (if (nodeToBeRemoved->is_leaf == 1 && nodeToBeRemoved->num_values == 1)!" << endl;
+	}
+}
+
+// to be invoked by expand_1_value_node
+void two34_tree::fusion(node* p)
+{
+	node* nodeToBeRemoved = new node();
+	nodeToBeRemoved	= p;
+
+	node* leftSibling = new node();
+	node* rightSibling = new node();
+	node* parentNode = new node();
+	parentNode = p->parent;
+
+	if (parentNode != nullptr)
+	{
+		int leftValue = -1;
+		int centerValue = -1;
+		int rightValue = -1;
+		
+		/////////////////////////////////////////
+		// parent -> num_values
+		if (parentNode->num_values == 1)
+		{
+			leftValue = p->parent->child[0]->value[0];
+			centerValue = parentNode->value[0];
+			rightValue = p->parent->child[1]->value[0];
+
+			// nodeToBeRemoved is a leftSibling or nodeToBeRemoved is a rightSibling
+			// generalising both the sibling regardless of which one is to be removed as both will end up in a single node
+			leftSibling = parentNode->child[0];
+			leftSibling = parentNode->child[1];
+
+			// changing the parent node to contain both the values
+			p->parent->num_values = 3; // prev it was 1
+			// disconnecting the childs
+			p->parent->child[0] = nullptr;
+			p->parent->child[1] = nullptr;
+
+			// child_state and parent remains the same
+			p->parent->is_leaf = 1; // changes
+
+			// update values
+			// shift the parent's value to the center pos
+			p->parent->value[1] = centerValue;
+			// merge the child values
+			p->parent->value[0] = leftValue;
+			p->parent->value[2] = rightValue;
+		}
+		else if (parentNode->num_values == 2)
+		{
+			node* centerSibling = new node();
+			// generalising the siblings regardless of which one is to be removed to 
+			// save the values
+			leftSibling = parentNode->child[0];
+			centerSibling = parentNode->child[1];
+			rightSibling = parentNode->child[2];
+
+			// left or a center node
+			if (nodeToBeRemoved->child_state == 0 || nodeToBeRemoved->child_state == 1)
+			{
+				leftValue = parentNode->child[0]->value[0];
+				centerValue = parentNode->value[0];
+				rightValue = parentNode->child[1]->value[0];
+
+				// fuse it in the left sibling 
+				// parent node becomes a single node with 2 childs
+				p->parent->num_values = 1;
+				// no change in parent's child state or parent
+				p->parent->value[1] = -999; // reset it
+				p->parent->value[0] = parentNode->value[1];
+				p->parent->child[2] = nullptr;
+				p->parent->child[1] = rightSibling;
+				// right sibling's childstate changes
+				p->parent->child[1]->child_state = 1;
+				//<---------------------------parent and right sibling is already taken care
+
+				// new left sibling node
+				p->parent->child[0]->num_values = 3;
+				p->parent->child[0]->child_state = 0; // same; and is_leaf, parent and child is also same
+				// new values
+				p->parent->child[0]->value[0] = leftValue;
+				p->parent->child[0]->value[1] = centerValue;
+				p->parent->child[0]->value[2] = rightValue;
+			}
+			// right node
+			else if(nodeToBeRemoved->child_state == 2)
+			{
+				leftValue = parentNode->child[1]->value[0];
+				centerValue = parentNode->value[1];
+				rightValue = parentNode->child[2]->value[0];
+
+				// fuse it in the right sibling 			
+				// parent node becomes a single node with 2 childs
+				p->parent->num_values = 1;
+				// no change in parent's child state or parent
+				p->parent->value[1] = -999; // reset it
+				p->parent->value[0] = parentNode->value[0];
+				p->parent->child[2] = nullptr;
+				p->parent->child[0] = leftSibling;
+				// left sibling's childstate remains the same
+				//<---------------------------parent and right sibling is already taken care
+
+				// new left sibling node
+				p->parent->child[1]->num_values = 3;
+				p->parent->child[1]->child_state = 1; // same; and is_leaf, parent and child is also same
+				// new values
+				p->parent->child[1]->value[0] = leftValue;
+				p->parent->child[1]->value[1] = centerValue;
+				p->parent->child[1]->value[2] = rightValue;
+			}
+		}
+		else if (parentNode->num_values == 3)
+		{
+			node* outerLeftSibling = new node();
+			node* innerLeftSibling = new node();
+			node* innerRightSibling = new node();
+			node* outerRightSibling = new node();
+
+			// save the original values
+			outerLeftSibling = parentNode->child[0];
+			innerLeftSibling = parentNode->child[1];
+			innerRightSibling = parentNode->child[2];
+			outerRightSibling = parentNode->child[3];
+
+			// outer left or inner left node
+			if (nodeToBeRemoved->child_state == 0 || nodeToBeRemoved->child_state == 1)
+			{
+				leftValue = parentNode->child[0]->value[0];
+				centerValue = parentNode->value[0];
+				rightValue = parentNode->child[1]->value[0];
+
+				// change the parent values
+				p->parent->num_values = 2;
+				p->parent->value[0] = parentNode->value[1];
+				p->parent->value[1] = parentNode->value[2];
+				p->parent->value[2] = -999;
+				// change the inner and outer right siblings values
+				p->parent->child[3] = nullptr;
+				p->parent->child[2] = outerRightSibling;
+				p->parent->child[2]->child_state = 2;
+				p->parent->child[1] = innerRightSibling;
+				p->parent->child[1]->child_state = 1;
+				//<---------------------------parent and right inner and outer sibling is already taken care
+
+				// left sibling fusion
+				p->parent->child[0]->num_values = 3;
+				p->parent->child[0]->value[0] = leftValue;
+				p->parent->child[0]->value[1] = centerValue;
+				p->parent->child[0]->value[2] = rightValue;
+				// parent, child, childstate and is_leaf is same
+				p->parent->child[0]->child_state = 0;
+			}
+			// inner right
+			else if (nodeToBeRemoved->child_state == 2)
+			{
+				leftValue = parentNode->child[1]->value[0];
+				centerValue = parentNode->value[1];
+				rightValue = parentNode->child[2]->value[0];
+
+				// save the parent values; parent, child_state and is_leaf will be the same
+				p->parent->num_values = 2;
+				p->parent->child[3] = nullptr;
+				p->parent->value[0] = parentNode->value[0]; // will be the same
+				p->parent->value[1] = parentNode->value[2]; // shift from right
+				p->parent->value[2] = -999; // reset
+				// save left child and right child values
+				p->parent->child[0] = outerLeftSibling;
+				p->parent->child[0]->child_state = 0;
+				p->parent->child[2] = outerRightSibling;
+				p->parent->child[2]->child_state = 2;
+				//<---------------------------parent and right and left siblings is already taken care
+
+				// center siblings fusion
+				p->parent->child[1]->num_values = 3;
+				p->parent->child[1]->value[0] = leftValue;
+				p->parent->child[1]->value[1] = centerValue;
+				p->parent->child[1]->value[2] = rightValue;
+				// parent, child, childstate and is_leaf is same
+				p->parent->child[1]->child_state = 1;
+			}
+			// outer right
+			else if (nodeToBeRemoved->child_state == 3)
+			{
+				leftValue = parentNode->child[2]->value[0];
+				centerValue = parentNode->value[2];
+				rightValue = parentNode->child[3]->value[0];
+
+				// save the parent values; parent, child_state and is_leaf will be the same
+				p->parent->num_values = 2;
+				p->parent->child[3] = nullptr;
+				p->parent->value[0] = parentNode->value[0]; // will be the same
+				p->parent->value[1] = parentNode->value[1]; // will be the same
+				p->parent->value[2] = -999; // reset
+				// save outer and inner left child values; which are actually the same already
+				p->parent->child[0] = outerLeftSibling;
+				p->parent->child[0]->child_state = 0;
+				p->parent->child[1] = innerLeftSibling;
+				p->parent->child[1]->child_state = 1;
+				//<---------------------------parent and outer and inner left siblings is already taken care
+
+				// right siblings fusion
+				p->parent->child[2]->num_values = 3;
+				p->parent->child[2]->value[0] = leftValue;
+				p->parent->child[2]->value[1] = centerValue;
+				p->parent->child[2]->value[2] = rightValue;
+				// parent, child, childstate and is_leaf is same
+				p->parent->child[2]->child_state = 2;
+			}
+		}
+	}
+}
+
+// to be invoked by expand_1_value_node
+void two34_tree::rotation(node * p)
+{
+	node* nodeToBeRemoved = p;
+	node* leftSibling = nullptr;
+	node* rightSibling = nullptr;
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	// save sibling values: leftSibling, rightSibling
+	if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 1)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 1)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+	}
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 2)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 2)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		// check if nodeToBeRemoved is a centerChild?
+		else if (nodeToBeRemoved->child_state == 1)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nodeToBeRemoved->parent->child[2];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+	}
+	else if (nodeToBeRemoved->parent != nullptr && nodeToBeRemoved->parent->num_values == 3)
+	{
+		// check if nodeToBeRemoved is a rightChild?
+		if (nodeToBeRemoved->child_state == 3)
+		{
+			leftSibling = nodeToBeRemoved->parent->child[2];
+			rightSibling = nullptr;	// not present
+		}
+		// check if nodeToBeRemoved is a leftChild?
+		else if (nodeToBeRemoved->child_state == 0)
+		{
+			leftSibling = nullptr;	// not present
+			rightSibling = nodeToBeRemoved->parent->child[1];
+		}
+		// check if nodeToBeRemoved is a RightInnerChild?
+		else if (nodeToBeRemoved->child_state == 2)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[1];
+			rightSibling = nodeToBeRemoved->parent->child[3];
+		}
+		// check if nodeToBeRemoved is a LeftInnerChild?
+		else if (nodeToBeRemoved->child_state == 1)
+		{
+			// both are present
+			leftSibling = nodeToBeRemoved->parent->child[0];
+			rightSibling = nodeToBeRemoved->parent->child[2];
+		}
+		else
+		{
+			//cout << "\n Incorrect Parameters of nodeToBeRemoved" << endl;
+		}
+
+	}
+
+	/////////////////////////////////////////////////////////////////////////////////
+	// check if left sibling can lend an element; nodeToBeRemoved->is_leaf == 1
+	if (leftSibling != nullptr && leftSibling->num_values > 1)
+	{
+		// Borrow from Left Sibling
+		// Rotate Right
+		node* parentNode = nodeToBeRemoved->parent;
+
+		//////////////////////////////////////////////////////////////////////
+		// Right- Rotation
+
+		// check parent node's num_values
+		if (parentNode->num_values == 1)
+		{
+			///////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> right node
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				p->num_values = 2;							// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];	// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[0];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					p->parent->value[0] = leftSibling->value[1];
+					p->parent->child[0]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					p->parent->value[0] = leftSibling->value[2];
+					p->parent->child[0]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 2;
+				}
+			}
+		}
+		else if (parentNode->num_values == 2)
+		{
+			///////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> center node
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				p->num_values = 2;									// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];			// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[1];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = leftSibling->value[1];
+					p->parent->child[0]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = leftSibling->value[2];
+					p->parent->child[0]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 2;
+				}
+			}
+			///////////////////////////////////////////////////////////////////////
+			// Case 2 : nodeToBeRemoved -> right node
+			else if (nodeToBeRemoved->child_state == 2)
+			{
+				p->num_values = 2;									// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];			// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[1];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = leftSibling->value[1];
+					p->parent->child[1]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = leftSibling->value[2];
+					p->parent->child[1]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 2;
+				}
+			}
+		}
+		else if (parentNode->num_values == 3)
+		{	
+			////////////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> right node
+			if (nodeToBeRemoved->child_state == 3)
+			{
+				p->num_values = 2;									// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];			// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[2];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[2] = leftSibling->value[1];
+					p->parent->child[2]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[2] = leftSibling->value[2];
+					p->parent->child[2]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 2;
+				}
+			}
+
+			// Case 2 : nodeToBeRemoved -> inner right node
+			if (nodeToBeRemoved->child_state == 2)
+			{
+				p->num_values = 2;									// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];			// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[1];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = leftSibling->value[1];
+					p->parent->child[1]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = leftSibling->value[2];
+					p->parent->child[1]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 2;
+				}
+			}
+			//////////////////////////////////////////////////////////////////////////////
+			// Case 3 : nodeToBeRemoved -> inner left node
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				p->num_values = 2;									// increase right node's num_value
+				p->value[1] = nodeToBeRemoved->value[0];			// shift right node's [1] value to [2]
+				p->value[0] = nodeToBeRemoved->parent->value[0];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (leftSibling->num_values == 2)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = leftSibling->value[1];
+					p->parent->child[0]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 1;
+				}
+				else if (leftSibling->num_values == 3)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = leftSibling->value[2];
+					p->parent->child[0]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[0]->num_values = 2;
+				}
+			}
+		}
+	}
+	/////////////////////////////////////////////////////////////////////////////////
+	// check if right sibling can lend an element; nodeToBeRemoved->is_leaf == 1
+	else if (rightSibling != nullptr && rightSibling->num_values > 1)
+	{
+		// Borrow from Right Sibling
+		// Rotate Left
+		node* parentNode = nodeToBeRemoved->parent;
+
+		//////////////////////////////////////////////////////////////////////
+		// Left- Rotation
+		// check parent node's num_values
+		if (parentNode->num_values == 1)
+		{
+			///////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> left node
+			if (nodeToBeRemoved->child_state == 0)
+			{
+				p->num_values = 2;									// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[0];	// copy parent's value to nodeToBeRemoved's 2nd value
+
+				//parent's right child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];
+					p->parent->child[1]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];
+					p->parent->child[1]->value[1] = rightSibling->value[2];
+					p->parent->child[1]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 2;
+				}
+			}
+		}
+		else if (parentNode->num_values == 2)
+		{
+			///////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> center node
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				p->num_values = 2;							// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[1];	// copy parent's value to nodeToBeRemoved's 2nd value
+
+				//parent's right child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = rightSibling->value[0];
+					p->parent->child[2]->value[0] = rightSibling->value[1];
+					p->parent->child[2]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = rightSibling->value[0];
+					p->parent->child[2]->value[0] = rightSibling->value[1];
+					p->parent->child[2]->value[1] = rightSibling->value[2];
+					p->parent->child[2]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 2;
+				}
+			}
+			///////////////////////////////////////////////////////////////////////
+			// Case 2 : nodeToBeRemoved -> left node
+			else if (nodeToBeRemoved->child_state == 0)
+			{
+				p->num_values = 2;							// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[0];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's right child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];
+					p->parent->child[1]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];	// delete from here as it shifted to parent
+					p->parent->child[1]->value[1] = rightSibling->value[2];	// delete from here as it shifted to parent
+					p->parent->child[1]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 2;
+				}
+			}
+		}
+		else if (parentNode->num_values == 3)
+		{
+			////////////////////////////////////////////////////////////////////////////
+			// Case 1 : nodeToBeRemoved -> left node
+			if (nodeToBeRemoved->child_state == 0)
+			{
+				p->num_values = 2;							// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[0];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];
+					p->parent->child[1]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					p->parent->value[0] = rightSibling->value[0];
+					p->parent->child[1]->value[0] = rightSibling->value[1];
+					p->parent->child[1]->value[1] = rightSibling->value[2];
+					p->parent->child[1]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[1]->num_values = 2;
+				}
+			}
+
+			// Case 2 : nodeToBeRemoved -> inner right node
+			if (nodeToBeRemoved->child_state == 2)
+			{
+				p->num_values = 2;							// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[2];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's right child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					p->parent->value[2] = rightSibling->value[0];
+					p->parent->child[3]->value[0] = rightSibling->value[1];
+					p->parent->child[3]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[3]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					p->parent->value[2] = rightSibling->value[0];
+					p->parent->child[3]->value[0] = rightSibling->value[1];
+					p->parent->child[3]->value[1] = rightSibling->value[2];
+					p->parent->child[3]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[3]->num_values = 2;
+				}
+			}
+			//////////////////////////////////////////////////////////////////////////////
+			// Case 3 : nodeToBeRemoved -> inner left node
+			if (nodeToBeRemoved->child_state == 1)
+			{
+				p->num_values = 2;							// increase left node's num_value
+				p->value[1] = nodeToBeRemoved->parent->value[1];	// copy parent's value to nodeToBeRemoved's 1st value
+
+				//parent's left child can have 2 or 3 values
+				if (rightSibling->num_values == 2)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = rightSibling->value[0];
+					p->parent->child[2]->value[0] = rightSibling->value[1];
+					p->parent->child[2]->value[1] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 1;
+				}
+				else if (rightSibling->num_values == 3)
+				{
+					//p->parent->value[2] = nodeToBeRemoved->parent->value[1];
+					//p->parent->value[1] = nodeToBeRemoved->parent->value[0];
+					p->parent->value[1] = rightSibling->value[0];
+					p->parent->child[2]->value[0] = rightSibling->value[1];
+					p->parent->child[2]->value[1] = rightSibling->value[2];
+					p->parent->child[2]->value[2] = -999;	// delete from here as it shifted to parent
+					p->parent->child[2]->num_values = 2;
+				}
+			}
+		}
+
+	}
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Parent Rotation
+	else if (((leftSibling != nullptr && leftSibling->num_values == 1) || (rightSibling != nullptr && rightSibling->num_values == 1)) 
+		&& nodeToBeRemoved->parent->parent != nullptr)
+	{
+		//cout << "\n Invoking Parent Rotation!" << endl;
+
+		// invoke parent Rotation function
+		parentRotation(nodeToBeRemoved);
+	}
+	else
+	{
+		//cout << "\n Didn't Rotate for any condition!";
+	}
+}
+
+// to be invoked by rotation()
+void two34_tree::parentRotation(node * p)
+{
+	node* nodeToBeRemoved = p;
+
+	////////////////////////////////////////////////////////////////////////////
+	// save LeftParentSibling and RightParentSibling Values
+	node* nodeToBeRemovedParent = nodeToBeRemoved->parent;
+	node*  nodeToBeRemovedGParent = nodeToBeRemovedParent->parent;
+	node* leftParentSibling = nullptr;
+	node* rightParentSibling = nullptr;
+
+	// calculate leftParentSibling's value
+	if (nodeToBeRemovedParent->child_state > 0)
+	{
+		int par_CS = nodeToBeRemovedParent->child_state;
+		int calc_leftPar_CS = par_CS - 1;
+
+		leftParentSibling = nodeToBeRemovedGParent->child[calc_leftPar_CS];
+	}
+
+	// calculate rightParentSibling's value
+	if (nodeToBeRemovedParent->child_state < 2)
+	{
+		int par_CS = nodeToBeRemovedParent->child_state;
+		int calc_rightPar_CS = par_CS + 1;
+
+		rightParentSibling = nodeToBeRemovedGParent->child[calc_rightPar_CS];
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	// Right-Rotation of Parent via GrandParent
+	if (nodeToBeRemovedGParent->num_values > 0 && nodeToBeRemovedParent->child_state > 0
+		&& leftParentSibling != nullptr && leftParentSibling->num_values > 1)
+	{
+
+	}
+	//////////////////////////////////////////////////////////////////////////////////////////
+	// Left-Rotation of Parent via GrandParent
+	else if (nodeToBeRemovedGParent->num_values > 0 && nodeToBeRemovedParent->child_state < 3
+		&& rightParentSibling != nullptr && rightParentSibling->num_values > 1)
+	{
+
+	}
+
+}
